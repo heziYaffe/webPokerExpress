@@ -1,0 +1,48 @@
+
+
+.register-page {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-image: url('../../../public/assets/Home/homePageCasino.webp'); /* Add your image URL here for a full-page background */
+    background-size: cover;
+  }
+  
+  .register-container {
+    background-color: rgba(255, 255, 255, 0.8); /* Optional: make background slightly transparent to see the image */
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: fit-content; /* Adjust width as needed */
+    margin: auto; /* Center in the viewport if it's a flex item */
+    background-size: cover;
+    background-position: center;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  input[type="text"],
+  input[type="password"],
+  button {
+    margin: 10px;
+    padding: 10px;
+    width: 300px; /* Adjust the width as per your design */
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box;
+  }
+  
+  p span {
+    color: blue;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  /* Your existing styles below... */
+  
