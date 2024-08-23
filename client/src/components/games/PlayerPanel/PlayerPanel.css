@@ -1,0 +1,90 @@
+.player-panel {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 10px;
+    width: 90%;
+    text-align: center;
+    z-index: 1;
+    display: flex;
+    justify-content: space-around; /* Use space-around to distribute space evenly */
+    align-items: center;
+    flex-wrap: wrap; /* Allow the content to wrap if necessary */
+
+}
+
+.cards, .chips, .actions {
+    flex: 1; /* Allow sections to grow and shrink as needed */
+    margin: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Ensure the cards section adjusts its width */
+.cards {
+    justify-content: flex-start; /* Align cards to the start */
+}
+
+.card {
+    width: 50px; /* Adjusted width */
+    height: 70px; /* Adjusted height */
+    background-color: white;
+    color: black;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 5px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+/* Styling for the chips section */
+.chips {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd700; /* Gold color for the chips text */
+}
+
+/* Styling for the action buttons */
+.actions {
+    display: flex;
+    justify-content: space-between; /* Space out the buttons */
+    align-items: center;
+}
+
+.actions button {
+    margin: 0 5px;
+    padding: 10px 15px; /* Adjusted padding */
+    background-color: #16a085;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px; /* Adjusted font size */
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.actions button.raise {
+    background-color: #28a745;
+}
+
+.actions button.check {
+    background-color: #007bff;
+}
+
+.actions button.fold {
+    background-color: #dc3545;
+}
+
+.actions button:hover {
+    background-color: #1abc9c;
+}

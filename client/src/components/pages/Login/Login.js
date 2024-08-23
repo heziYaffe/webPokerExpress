@@ -4,13 +4,23 @@ import React, { useState } from 'react';
 import Register from "../Register/Register";
 import './Login.css';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { usePlayer } from '../../../context/PlayerContext'; // Import PlayerContext
 
+// Utility function to decode JWT token
+const parseJwt = (token) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
 
-const Login = ({handleSuccesfulLogin}) => {
+const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   const navigate = useNavigate(); // Initialize the navigation function
+  const { setConnectedPlayer } = usePlayer(); // Access setConnectedPlayer from context
 
   const handleClick = () => {
     navigate('/register'); // Replace '/target-page' with the route you want to navigate to
@@ -28,9 +38,17 @@ const Login = ({handleSuccesfulLogin}) => {
       });
       const data = await response.json();
       console.log("response.ok", response.ok)
+      console.log('data', data);
+
       if (response.ok) {
         console.log('Login successful:', data);
-        handleSuccesfulLogin();
+        localStorage.setItem('token', data.token);
+        const parsedJwt =  parseJwt(data.token)
+        console.log("parsedJwt", parsedJwt)
+        setConnectedPlayer({ id: parsedJwt.userId, name: parsedJwt.username });
+        console.log()
+        navigate('/lobby'); // Redirect to the game page after successful login
+
         // Handle successful login here (e.g., redirecting the user or storing the login token)
       } else {
         console.error('Login failed:', data.message);

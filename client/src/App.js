@@ -1,12 +1,16 @@
 import React from 'react';
+import { createRoot } from 'react-dom/client'; // Import createRoot from react-dom/client
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import Login from './pages/Login/Login';
-import Register from './pages/Register/Register';
-import Home from './pages/Home/Home';
-import GamePage from './pages/GamePage/GamePage';
+import Login from './components/pages/Login/Login';
+import Register from './components/pages/Register/Register';
+import Home from './components/pages/Home/Home';
+import GamePage from './components/pages/GamePage/GamePage';
+import { PlayerProvider } from './context/PlayerContext';
+import Lobby from './components/pages/Lobby/Lobby';
+import RoomList from './components/pages/RoomList/RoomList';
 
 
-
+// Define the App component first
 const App = () => {
     return (
         <Router>
@@ -15,11 +19,25 @@ const App = () => {
                 <Route path="/register" element={<Register />} />
                 <Route path="/" element={<Home />} /> {/* Example for a homepage */}
                 <Route path="/texas-holdem" element={<GamePage />} />
-
+                <Route path="/lobby" element={<Lobby />} />
+                <Route path="/lobby/:game" element={<RoomList />} /> {/* Single dynamic route for all games */}
+                <Route path="/game/:roomId" element={<GamePage />} /> {/* Single dynamic route for all games */}
 
             </Routes>
         </Router>
     );
 };
+
+const container = document.getElementById('root');
+const root = createRoot(container); // Create a root with the container element
+
+root.render(
+  <React.StrictMode>
+    <PlayerProvider>
+      <App />
+    </PlayerProvider>
+  </React.StrictMode>
+);
+
 
 export default App;

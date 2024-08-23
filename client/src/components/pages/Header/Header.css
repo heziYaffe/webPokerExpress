@@ -1,0 +1,57 @@
+.header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 10px 20px;
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo-menu-container {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    margin-right: 30px;
+}
+
+.menu-items {
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+}
+
+.menu-link {
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    transition: color 0.3s ease;
+}
+
+.menu-link:hover {
+    color: #FFD700; /* Add a subtle hover effect */
+}
+
+.separator {
+    color: white;
+    margin: 0 10px; /* Adjusts space between menu items */
+}
+
+.user-actions .btn {
+    margin-left: 20px;
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    background-color: #e74c3c;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.user-actions .btn:hover {
+    background-color: #c0392b;
+}

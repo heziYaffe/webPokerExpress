@@ -6,7 +6,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background-image: url('../../../public/assets/Home/homePageCasino.webp'); /* Add your image URL here for a full-page background */
+  background-image: url('../../../../public/assets/Home/homePageCasino.webp'); /* Add your image URL here for a full-page background */
   background-size: cover;
 }
 

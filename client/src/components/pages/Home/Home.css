@@ -10,7 +10,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url('../../../public/assets/Home/homePageCasino.webp');
+    background-image: url('../../../../public/assets/Home/homePageCasino.webp');
     background-size: cover;
     background-position: center;
     opacity: 0.2; /* Adjust this value to decrease the opacity of the background image */
