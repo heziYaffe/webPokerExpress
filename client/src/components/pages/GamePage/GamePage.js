@@ -103,27 +103,7 @@ const GamePage =  () => {
         };
         fetchGameState();
 
-                // Establish WebSocket connection
-                const ws = new WebSocket(`ws://localhost:5003`);
-
-                ws.onopen = () => {
-                    console.log('WebSocket connection opened');
-                };
         
-                ws.onmessage = (message) => {
-                    console.log('Received WebSocket message:', message.data);
-                    const data = JSON.parse(message.data);
-                    updateGameState(data);
-                };
-        
-                ws.onclose = () => {
-                    console.log('WebSocket connection closed');
-                };
-        
-                // Cleanup WebSocket on component unmount
-                return () => {
-                    ws.close();
-                };
     }, [roomId]);
     
 
