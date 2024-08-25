@@ -6,6 +6,8 @@ import './Login.css';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { usePlayer } from '../../../context/PlayerContext'; // Import PlayerContext
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5003';
+
 // Utility function to decode JWT token
 const parseJwt = (token) => {
   try {
@@ -29,7 +31,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5003/login', {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

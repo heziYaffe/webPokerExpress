@@ -18,7 +18,6 @@ const App = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/" element={<Home />} /> {/* Example for a homepage */}
-                <Route path="/texas-holdem" element={<GamePage />} />
                 <Route path="/lobby" element={<Lobby />} />
                 <Route path="/lobby/:game" element={<RoomList />} /> {/* Single dynamic route for all games */}
                 <Route path="/game/:roomId" element={<GamePage />} /> {/* Single dynamic route for all games */}

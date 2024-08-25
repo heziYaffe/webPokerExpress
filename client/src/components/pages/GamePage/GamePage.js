@@ -42,16 +42,23 @@ const GamePage =  () => {
     const [gameState, setGameState] = useState({
         players: [],
         communityCards: [],
-        pot: 0
+        pot: 0,
+        status: 'waiting',
     });
 
     useEffect(() => {
         console.log("GameState has changed:", gameState);
+        console.log("players:", gameState.players);
+
     }, [gameState]);
+
+    useEffect(() => {
+        console.log("currentPlayer changed:", currentPlayer);
+    }, [currentPlayer]);
 
     
     const updateGameState = (data) => {
-    
+        console.log("data in updateGameState: " ,data)
         // Only update if there is a difference
         if (!_.isEqual(gameState.players, data.players) ||
             !_.isEqual(gameState.communityCards, data.communityCards) ||
@@ -70,11 +77,20 @@ const GamePage =  () => {
     
     
     useEffect(() => {
+
+        const token = localStorage.getItem('token'); // Retrieve the token from localStorage
+
         console.log("useEffect is running to fetch game state");
         // Fetch initial game state (including players and cards) from the server
         const fetchGameState = async () => {
             try {
-                const response = await fetch(`http://localhost:5003/api/games/${roomId}`);
+                const response = await fetch(`http://localhost:5003/api/games/${roomId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`  // Include the token in the Authorization header
+                    }
+                });               
                 const data = await response.json();
                 if (response.ok) {
                     updateGameState(data);
@@ -86,6 +102,28 @@ const GamePage =  () => {
             }
         };
         fetchGameState();
+
+                // Establish WebSocket connection
+                const ws = new WebSocket(`ws://localhost:5003`);
+
+                ws.onopen = () => {
+                    console.log('WebSocket connection opened');
+                };
+        
+                ws.onmessage = (message) => {
+                    console.log('Received WebSocket message:', message.data);
+                    const data = JSON.parse(message.data);
+                    updateGameState(data);
+                };
+        
+                ws.onclose = () => {
+                    console.log('WebSocket connection closed');
+                };
+        
+                // Cleanup WebSocket on component unmount
+                return () => {
+                    ws.close();
+                };
     }, [roomId]);
     
 
@@ -97,7 +135,7 @@ const GamePage =  () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                //'Authorization': `Bearer ${token}`  // Include the token in the Authorization header
+                'Authorization': `Bearer ${token}`  // Include the token in the Authorization header
             },
             body: JSON.stringify({ action, playerId: connectedPlayer.id }),
         });
@@ -105,21 +143,16 @@ const GamePage =  () => {
         const updatedGameState = await response.json();
         setGameState(updatedGameState);
     
+        console.log("currentPlayer before change:", currentPlayer);
+
         // Advance to the next player's turn
         setCurrentPlayer((prevPlayer) => (prevPlayer + 1) % gameState.players.length);
     };
     
 
-    const players = [
-        { name: 'Player 1', chips: 1000, id: "66bd0f0ddff1d5ea76841a55" },
-        { name: 'Player 2', chips: 1000, id: "66bd0f0ddff1d5ea76841a55ff" },
-        { name: 'Player 3', chips: 1000, id: "66bd0f0ddff1d5ea76841a55ff" },
-        { name: 'Player 4', chips: 1000, id: "66bd0f0ddff1d5ea76841a55ff" }
-    ];
-
-    const nextPlayer = () => {
-        setCurrentPlayer((prevPlayer) => (prevPlayer + 1) % players.length);
-    };
+    console.log("connectedPlayer?.id ", connectedPlayer?.id)
+    console.log("currentPlayer ", currentPlayer)
+    console.log("gameState.players ", gameState.players)
 
     ///FOR TESTS////
 
@@ -134,32 +167,19 @@ const GamePage =  () => {
             <div className="game-container">
                 <h1 className='game-name'>Texas Hold'em</h1>
                 <div className="poker-table">
-                    {/*<img src="/assets/images/PokerTable.svg" alt="Poker Table" className="poker-table-svg" />*/}
                     <PokerTable/>
-                    {players.map((player, index) => (
+                    {gameState.players.map((player, index) => (                                           
                         <div key={index} className={`player player-${index + 1}`}>
-                            <Player name={player.name}/>
-                            {/*<div className="player-info">
-                                    <p>{player.name}</p>
-                                </div> */}
-                            {/*<div className="player-avatar">
-                                <img src="/assets/images/playerAvatar.webp" alt="Avatar" />
-                            </div>*/}
-                            {/* Only show player info if it's the connected player 
-                            {connectedPlayer?.id === player.id && (
-                                <div className="player-info">
-                                    <p>{player.name}</p>
-                                </div> 
-                            )*/}
+                            <Player name={player.player}/>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* Show PlayerPanel only for the current player */}
-            {connectedPlayer?.id === players[currentPlayer].id && (
-                <PlayerPanel player={players[currentPlayer]} onAction={handlePlayerAction} />
-            )}
+        {/* Show PlayerPanel only for the current player if the player exists */}
+        {gameState.players[currentPlayer] && connectedPlayer?.id === gameState.players[currentPlayer].player && (
+            <PlayerPanel player={gameState.players[currentPlayer]} onAction={handlePlayerAction} />
+        )}
         </div>
     );
 };

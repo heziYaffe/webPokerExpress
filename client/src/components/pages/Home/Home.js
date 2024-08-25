@@ -2,7 +2,6 @@ import React from 'react';
 import Header from '../Header/Header';
 import './Home.css';
 import Carousel from '../Carousel/Carousel';
-import { useNavigate } from 'react-router-dom';
 
 
 const HomePage = () => {
@@ -20,16 +19,6 @@ const HomePage = () => {
         '/assets/Games/sevenCards.webp',
     ];
 
-    const navigate = useNavigate();
-
-    const handleGameImageClick = (index) => {
-        if (index === 1) { // Assuming Texas Hold'em is the first image
-            navigate('/texas-holdem');
-        }
-        alert(`Image at index ${index} clicked!`);
-        // Here you can handle navigation, open a modal, etc.
-    };
-
     return (
         <div className='homeBackground'>
             <div className="homepage">
@@ -41,12 +30,12 @@ const HomePage = () => {
 
                 <section className="games">
                     <h3 className='section-title'>Available Games</h3>
-                    <Carousel imageUrls={gamesImageUrls} onImageClick={handleGameImageClick}/>                   
+                    <Carousel imageUrls={gamesImageUrls} onImageClick={() => {}}/>                   
                 </section>
                 
                 <section className="tournaments">
                     <h3 className='section-title'>Upcoming Tournaments</h3>
-                    <Carousel imageUrls={tourmentImageUrls}/>                   
+                    <Carousel imageUrls={tourmentImageUrls} onImageClick={() => {}}/>                   
                 </section>
                 <footer className="footer">
                     <p>&copy; 2024 PokerStars. All Rights Reserved.</p>
