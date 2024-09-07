@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 
 const gameStateSchema = new mongoose.Schema({
-    currentTurn: { type: Number, default: 0 }, // Index of current player
+    currentPlayer: { type: Number, default: 0 }, // Index of current player
     communityCards: [{ type: String }], // e.g., ['2H', '3D', '5S']
     playerCards: [{
         player: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

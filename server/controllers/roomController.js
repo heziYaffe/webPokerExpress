@@ -2,10 +2,9 @@ const Room = require('../models/Room');
 const GameState = require('../models/GameState');
 
 exports.createRoom = async (req, res) => {
-    console.log("createRoom call")
+    //console.log("createRoom call")
     try {
         const { name, gameType, maxPlayers } = req.body;
-        console.log("maxPlayers ", maxPlayers)
         // Validate the required fields
         if (!name || !gameType) {
             return res.status(400).json({ message: 'Name and game type are required' });
@@ -18,7 +17,7 @@ exports.createRoom = async (req, res) => {
 
         // Create a new GameState for the room
         const newGameState = new GameState({
-            currentTurn: 0,
+            currentPlayer: 0,
             communityCards: [],
             playerCards: [{ player: userId, cards: [] }], // Add the creator with empty cards
             pot: 0,
@@ -39,8 +38,8 @@ exports.createRoom = async (req, res) => {
         // Save the room to the database
         await newRoom.save();
 
-        console.log("newRoom: ", newRoom)
-        console.log("newGameState: ", newGameState)
+        //console.log("newRoom: ", newRoom)
+        //console.log("newGameState: ", newGameState)
 
         // Send the created room back to the client
         res.status(201).json(newRoom);

@@ -5,6 +5,9 @@ const Room = require('../models/Room');
 const ObjectId = mongoose.Types.ObjectId;
 
 
+const { broadcastToRoom } = require('../websockets/gameSockets')
+
+
 
 exports.getGameState = async (req, res) => {
     // Fetch game state from DB and return to client
@@ -13,29 +16,20 @@ exports.getGameState = async (req, res) => {
 
     try {
 
-        const existingState = await Room.findOne({ _id: new ObjectId(roomId) }).populate('gameState');
-
-        console.log("existingState: ", existingState)
-        
-        /*
-        const existingState = {
-            players: [1,2,3],
-            communityCards: [4,5,6],
-            pot: 500
-        }
-        */
+        const existingState = await Room.findOne({ _id: new ObjectId(String(roomId)) }).populate('gameState');
 
         if (!existingState) {
             return res.status(400).json({ message: 'Room Dosent Exist' });
         }
-        console.log("game room id", roomId);
         console.log("game state fetched successfully: ", existingState.gameState);
+
         // Send the game state back to the client
         res.status(200).json({ 
             players: existingState.gameState.playerCards,
             communityCards: existingState.gameState.communityCards,
             pot: existingState.gameState.pot,
-            status: existingState.gameState.status
+            status: existingState.gameState.status,
+            currentPlayer: existingState.gameState.currentPlayer,
         });
     
     } catch (error) {
@@ -47,11 +41,17 @@ exports.getGameState = async (req, res) => {
 exports.handlePlayerAction = async (req, res) => {
     // Handle player action and update game state
     const { roomId } = req.params;
-    const { action, playerId } = req.body;
+    const { action, playerId, currentPlayer } = req.body;
 
-    const existingState = await Room.findOne({ _id: new ObjectId(roomId) }).populate('gameState');
+    const existingState = await Room.findOne({ _id: new ObjectId(String(roomId)) }).populate('gameState');
 
-    console.log("Received action from Game Room State request:", action);
+    console.log("existingState:", existingState)
+
+    if (!existingState) {
+        return res.status(400).json({ message: 'Room Dosent Exist' });
+    }
+
+    //console.log("Received action from Game Room State request:", action);
 
     try {
 
@@ -80,15 +80,31 @@ exports.handlePlayerAction = async (req, res) => {
                 return res.status(400).json({ message: 'Invalid action' });
         }
 
-        console.log("game room id", roomId);
-        console.log("game state updated successfully");
+        existingState.gameState.currentPlayer = (currentPlayer + 1) //% existingState.gameState.playerCards.length;
+
+        console.log("existingState after changeing currentPlayer ", existingState)
+        // Save the updated game state back to the database
+        try {
+            await existingState.gameState.save();
+            console.log("Game state saved successfully");
+        } catch (e) {
+            console.log("cant save the new state")
+        }
+
+
+        const updatedGameState = {
+            players: existingState.gameState.playerCards,
+            communityCards: existingState.gameState.communityCards,
+            pot: existingState.gameState.pot,
+            currentPlayer:  existingState.gameState.currentPlayer,
+        };
+
+        console.log("updatedGameState: ", updatedGameState)
+
+        broadcastToRoom(roomId, {type: "update"});
 
         // Send the updated game state back to the client
-        res.status(200).json({ 
-            players: existingState.playerCards,
-            communityCards: existingState.communityCards,
-            pot: existingState.pot
-        });
+        res.status(200).json(updatedGameState);
     
     } catch (error) {
         console.error('Error Processing Game Action:', error);

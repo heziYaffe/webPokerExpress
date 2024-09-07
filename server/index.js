@@ -1,9 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const WebSocket = require('ws');
-const server = require('http').createServer(app);
-const wss = new WebSocket.Server({ server });
+const http = require('http');
+const { setupWebSocket } = require('./websockets/gameSockets');
 
 const authRoutes = require('./routes/auth');
 const gameRoutes = require('./routes/game');
@@ -35,36 +34,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/rooms', roomRoutes);
 
+// Create HTTP server
+const server = http.createServer(app);
 
-// Array to store connected clients
-const clients = [];
-
-wss.on('connection', (ws) => {
-    console.log('A new client connected');
-    clients.push(ws);
-
-    ws.on('message', (message) => {
-        console.log('Received message:', message);
-
-        // Broadcast the message to all connected clients
-        clients.forEach(client => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message);
-            }
-        });
-    });
-
-    ws.on('close', () => {
-        console.log('A client disconnected');
-        clients.splice(clients.indexOf(ws), 1);
-    });
-});
-
-
-
-
+// Setup WebSocket
+setupWebSocket(server);
 
 // Start the Server
-app.listen(PORT, () => {
+server.listen(PORT, () => { // Use server.listen instead of app.listen
     console.log(`Server running on port ${PORT}`);
 });

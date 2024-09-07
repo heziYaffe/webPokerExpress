@@ -26,8 +26,8 @@ const RoomList = () => {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log("data: ", data)
-                    console.log("rooms: ", rooms)
+                    //console.log("data: ", data)
+                    //console.log("rooms: ", rooms)
 
                     setRooms(data);
                 } else {
