@@ -4,13 +4,6 @@ import Card from '../Card/Card';
 
 const PokerTable = ({ communityCards, pot }) => {
 
-    communityCards = [
-        { rank: 'A', suit: 'hearts' },
-        { rank: 'K', suit: 'spades' },
-        { rank: '7', suit: 'spades' }
-
-    ];
-
     pot = 1000
     
     return (

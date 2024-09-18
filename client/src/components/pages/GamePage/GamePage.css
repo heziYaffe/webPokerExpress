@@ -23,20 +23,6 @@
 }
 
 
-/*.poker-table {
-    position: relative;
-    width: 100%;
-    max-width: 800px;
-    height: 400px;
-    margin: 0 auto;
-}
-
-.poker-table-svg {
-    max-width: 100%;
-    height: auto;
-}
-*/
-
 .player {
     color: #fff; 
     font-size: 16px; 
@@ -45,27 +31,61 @@
     position: absolute; 
 }
 
-/* General player styling 
-.player {
-    position: absolute;
-    text-align: center;
-    color: white;
+/* Container that holds both Player Info (cards + chips) and Player Panel */
+.player-panel-container {
+    display: flex;
+    justify-content: flex-start; /* Align the content from the left */
+    align-items: center;
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 10px;
+    border-radius: 10px;
+    width: auto; /* Adjust width to content */
+    z-index: 1;
 }
 
-.player-avatar img {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    border: 2px solid #000;
-    margin-bottom: 5px;
-}
-
+/* Player info section (cards + chips) */
 .player-info {
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 5px;
-    border-radius: 5px;
+    display: flex;
+    flex-direction: column; /* Stack cards and chips vertically */
+    align-items: center;
+    margin-right: 20px; /* Space between player info and action panel */
 }
-*/
+
+/* Styling for the player's cards */
+.player-cards {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px; /* Space between cards and chips */
+}
+
+.player-cards .card {
+    width: 50px;
+    height: 70px;
+    margin-left: 5px; /* Space between cards */
+    background-color: white;
+    color: black;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+/* Styling for the player's chips */
+.player-chips {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd700; /* Gold color for the chips text */
+}
+
+
 
 /* Position each player around the table */
 .player-1 {
@@ -75,8 +95,8 @@
 }
 
 .player-2 {
-    top: 50%;
-    right: 7%;
+    top: 55%;
+    right: -4%;
     transform: translateY(-50%);
 }
 

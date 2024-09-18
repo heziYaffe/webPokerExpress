@@ -1,15 +1,13 @@
-const Game = require('../models/Game');
-const GameState = require('../models/GameState');
+
 const mongoose = require('mongoose');
 const Room = require('../models/Room');
+
+
 const ObjectId = mongoose.Types.ObjectId;
 
 
-const { broadcastToRoom } = require('../websockets/gameSockets')
-
-
-
-exports.getGameState = async (req, res) => {
+/*
+exports.startGame = async (req, res) => {
     // Fetch game state from DB and return to client
     const { roomId } = req.params;
     console.log("Received a Game Room State request from room", roomId);
@@ -37,7 +35,92 @@ exports.getGameState = async (req, res) => {
         res.status(500).json({ message: 'Error Fetching Game State' });
     }
 };
+*/
 
+exports.getGameState = async (req, res) => {
+
+    // Fetch game state from DB and return to client
+    const { roomId } = req.params;
+    console.log("Received a Game Room State request from room", roomId);
+
+    try {
+
+        const existingState = await Room.findOne({ _id: new ObjectId(String(roomId)) }).populate('gameState');
+
+        if (!existingState) {
+            return res.status(400).json({ message: 'Room Dosent Exist' });
+        }
+
+        console.log("game state fetched successfully: ", existingState.gameState);
+
+        // Send the game state back to the client
+        res.status(200).json({ 
+            players: existingState.gameState.playerCards,
+            communityCards: existingState.gameState.communityCards,
+            pot: existingState.gameState.pot,
+            status: existingState.gameState.status,
+            currentPlayer: existingState.gameState.currentPlayer,
+        });
+    
+    } catch (error) {
+        console.error('Error Fetching Game State:', error);
+        res.status(500).json({ message: 'Error Fetching Game State' });
+    }
+};
+
+
+exports.handlePlayerAction = async (data, roomId) => {
+    const { action, playerId, currentPlayer } = data;
+
+    const existingState = await Room.findOne({ _id: new ObjectId(String(roomId)) }).populate('gameState');
+
+    if (!existingState) {
+        console.log('Room does not exist');
+        return;
+    }
+
+    try {
+        // טיפול בפעולת השחקן
+        switch (action) {
+            case 'Fold':
+                console.log(playerId + " folded");
+                // עדכן את מצב המשחק בהתאם
+                break;
+            case 'Raise':
+                console.log(playerId + " raised");
+                // עדכון מצב המשחק והקופה
+                break;
+            case 'Check':
+                console.log(playerId + " checked");
+                // עדכון מצב המשחק והקופה
+                break;
+            default:
+                console.log("Invalid action");
+                return;
+        }
+
+        // עדכן את השחקן הנוכחי
+        existingState.gameState.currentPlayer = (currentPlayer + 1) % existingState.gameState.playerCards.length;
+
+        // שמור את המצב המעודכן בבסיס הנתונים
+        await existingState.gameState.save();
+
+        return {
+            type: 'gameUpdate',
+            gameState: {
+                players: existingState.gameState.playerCards,
+                communityCards: existingState.gameState.communityCards,
+                pot: existingState.gameState.pot,
+                currentPlayer: existingState.gameState.currentPlayer,
+            }
+        }
+       
+    } catch (error) {
+        console.error('Error processing action:', error);
+    }
+};
+
+/*
 exports.handlePlayerAction = async (req, res) => {
     // Handle player action and update game state
     const { roomId } = req.params;
@@ -111,3 +194,4 @@ exports.handlePlayerAction = async (req, res) => {
         res.status(500).json({ message: 'Error Processing Game Action' });
     }
 };
+*/

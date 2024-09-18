@@ -7,6 +7,8 @@ const { setupWebSocket } = require('./websockets/gameSockets');
 const authRoutes = require('./routes/auth');
 const gameRoutes = require('./routes/game');
 const roomRoutes = require('./routes/room');
+const adminRoutes = require('./routes/admin');
+
 
 
 require('dotenv').config({ path: './config/.env' }); // Adjust the path as necessary
@@ -33,6 +35,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Create HTTP server
 const server = http.createServer(app);

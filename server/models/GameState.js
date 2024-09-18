@@ -13,7 +13,8 @@ const gameStateSchema = new mongoose.Schema({
         type: String, 
         enum: ['waiting', 'in-game', 'completed'], 
         default: 'waiting' 
-    }
+    },
+    maxPlayers: { type: Number, default: 6 }
 });
 
 module.exports = mongoose.model('GameState', gameStateSchema);

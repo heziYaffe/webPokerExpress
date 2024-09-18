@@ -15,7 +15,7 @@
 .community-cards {
     position: absolute;
     top: 45%; /* Adjust based on table position */
-    left: 35%;
+    left: 42%;
     transform: translate(-50%, -50%);
     display: flex;
     gap: 0px; /* Reduce gap between cards */

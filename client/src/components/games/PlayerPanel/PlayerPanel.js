@@ -2,22 +2,17 @@ import React from 'react';
 import './PlayerPanel.css';
 import Card from '../Card/Card';
 
-const PlayerPanel = ({ player, onAction }) => {
-
-    const playerCards = [
-        { rank: 'A', suit: 'hearts' },
-        { rank: 'K', suit: 'spades' },
-        { rank: '7', suit: 'spades' }
-
-    ];
+const PlayerPanel = ({ player, onAction, playerCards}) => {
 
     return (
         <div className="player-panel">
+            {/*
             <div className="cards">
                 {playerCards.map((card, index) => (
                     <Card key={index} rank={card.rank} suit={card.suit} />
                 ))}
             </div>
+            */}
             <div className="chips">
                 {/* Display the player's chips */}
                 <p>Chips: ${player.chips}</p>

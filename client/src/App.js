@@ -5,10 +5,11 @@ import Login from './components/pages/Login/Login';
 import Register from './components/pages/Register/Register';
 import Home from './components/pages/Home/Home';
 import GamePage from './components/pages/GamePage/GamePage';
+import AdminPanel from './components/pages/AdminPanel/AdminPanel';
+
 import { PlayerProvider } from './context/PlayerContext';
 import Lobby from './components/pages/Lobby/Lobby';
 import RoomList from './components/pages/RoomList/RoomList';
-
 
 // Define the App component first
 const App = () => {
@@ -21,6 +22,7 @@ const App = () => {
                 <Route path="/lobby" element={<Lobby />} />
                 <Route path="/lobby/:game" element={<RoomList />} /> {/* Single dynamic route for all games */}
                 <Route path="/game/:roomId" element={<GamePage />} /> {/* Single dynamic route for all games */}
+                <Route path="/admin" element={<AdminPanel />} /> {/* Single dynamic route for all games */}
 
             </Routes>
         </Router>
