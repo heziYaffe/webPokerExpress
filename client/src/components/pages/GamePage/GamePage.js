@@ -43,6 +43,7 @@ const GamePage =  () => {
         players: [],
         communityCards: [],
         pot: 0,
+        chips: 0,
         status: 'waiting',
         currentPlayer: 0
     });
@@ -65,7 +66,7 @@ const GamePage =  () => {
         ]
     );
 
-    const [playerChips, setPlayerChips] = useState()
+    //const [playerChips, setPlayerChips] = useState()
 
     useEffect(() => {
         //setPlayerChips(100)
@@ -80,13 +81,15 @@ const GamePage =  () => {
     
     const updateGameState = (data) => {
 
+            console.log("in updateGameState", data)
             setGameState(prevState => {
                 return {
                     players: data.players || prevState.players,
-                    communityCards: prevState.communityCards,
+                    communityCards: data.communityCards || prevState.communityCards,
                     pot: data.pot !== undefined ? data.pot : prevState.pot,
-                    status: data.status,
+                    status: data.stage,
                     currentPlayer: data.currentPlayer,
+                    chips: data.chips || prevState.chips
                 };
             });
 
@@ -129,39 +132,14 @@ const GamePage =  () => {
         }
     };
 
-
-
-     // Fetch initial game state (including players and cards) from the server
-     const getGameStateFromServer = async () => {
-
-        const token = localStorage.getItem('token'); // Retrieve the token from localStorage
-
-        try {
-            const response = await fetch(`http://localhost:5003/api/games/${roomId}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`  // Include the token in the Authorization header
-                }
-            });               
-            const data = await response.json();
-            if (response.ok) {
-                updateGameState(data);
-            } else {
-                console.error('Failed to fetch game state:', data.message);
-            }
-        } catch (error) {
-            console.error('Network error:', error);
-        }
-    };
-
     useEffect(() => {
         console.log("useEffect is running to fetch game state");
 
-        fetchGameState();
+        //fetchGameState();
+        
         
         // Establish WebSocket connection and store in the ref
-        wsRef.current = new WebSocket(`ws://localhost:5003?roomId=${roomId}`);
+        wsRef.current = new WebSocket(`ws://localhost:5003?roomId=${roomId}&token=${localStorage.getItem('token')}`);
 
         wsRef.current.onopen = () => {
             console.log(`WebSocket connection from ${connectedPlayer.id} opened for room ${roomId}`);
@@ -181,12 +159,14 @@ const GamePage =  () => {
             }
 
             if (data.type === 'gameUpdate') {
-                console.log("update game");
-                fetchGameState()
+                console.log("update game", data.state);
+                updateGameState(data.state)
+
+                //fetchGameState()
             }
 
 
-            if (data.type === 'gameState') {
+            /*if (data.type === 'gameState') {
                 console.log("getGameState");
                 console.log("set game state", data.state);
                 console.log("player chips", data.state.chips);
@@ -194,7 +174,7 @@ const GamePage =  () => {
                 setPlayerChips(data.state.chips)
 
 
-            }
+            }*/
 
             if (data.type === 'playerCards') {
                 console.log("set player cards", data.cards);
@@ -275,10 +255,10 @@ const GamePage =  () => {
                 <div className="poker-table">
                     <PokerTable communityCards={gameState.communityCards}/>
                     {gameState.players.map((player, index) => {
-                        console.log(`Rendering player at index ${index}:`, player);
+                        console.log(`Rendering player at index ${index}:`, player.username);
                         return (
                             <div key={index} className={`player player-${index + 1}`}>
-                                <Player name={player.player}/>
+                                <Player name={player.username}/>
                             </div>
                         );
                     })}
@@ -288,10 +268,10 @@ const GamePage =  () => {
             </div>
 
         {/* Debugging output */}
-        {console.log('Current Player:', gameState.currentPlayer % 2)}
+        {console.log('Current Player:', gameState.currentPlayer % gameState.players.length)}
         {console.log('Connected Player ID:', connectedPlayer?.id)}
-        {console.log('Current Player Object:', gameState.players[gameState.currentPlayer % 2])}
-        {console.log('Should PlayerPanel render:', gameState.players[gameState.currentPlayer % 2] && connectedPlayer?.id === gameState.players[gameState.currentPlayer % 2].player)}
+        {console.log('Current Player Object:', gameState.players[gameState.currentPlayer % gameState.players.length])}
+        {console.log('Should PlayerPanel render:', gameState.players[gameState.currentPlayer % gameState.players.length] && connectedPlayer?.id === gameState.players[gameState.currentPlayer % gameState.players.length].userId)}
 
         {/* PlayerPanel and Player Info (cards + chips) */}
         <div className="player-panel-container">
@@ -304,13 +284,13 @@ const GamePage =  () => {
                 </div>
                 <div className="player-chips">
                     {/* Display the player's chips */}
-                    <p>Chips: ${playerChips}</p>
+                    <p>Chips: ${gameState.chips}</p>
                 </div>
         </div>
 
         {/* PlayerPanel Actions */}
-        {gameState.players[gameState.currentPlayer % 2] && connectedPlayer?.id === gameState.players[gameState.currentPlayer % 2].player && (
-            <PlayerPanel player={gameState.players[gameState.currentPlayer % 2]} onAction={handlePlayerAction} />
+        {gameState.players[gameState.currentPlayer] && connectedPlayer?.id === gameState.players[gameState.currentPlayer].userId && gameState.status < 4 && (
+            <PlayerPanel player={gameState.players[gameState.currentPlayer]} onAction={handlePlayerAction} />
         )}
     </div>
 

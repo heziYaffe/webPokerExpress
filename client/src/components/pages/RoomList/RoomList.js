@@ -135,6 +135,42 @@ const RoomList = () => {
                                     required
                                 />
                             </label>
+                            <label>
+                            Buy-In: 
+                                <input
+                                    type="number"
+                                    value={maxPlayers}
+                                    onChange={(e) => setMaxPlayers(e.target.value)}
+                                    min="2"
+                                    max="6"
+                                    required
+                                />
+                                
+                            </label>
+                            <label>
+                            Table Limit: 
+                                <input
+                                    type="number"
+                                    value={maxPlayers}
+                                    onChange={(e) => setMaxPlayers(e.target.value)}
+                                    min="2"
+                                    max="6"
+                                    required
+                                />
+                                
+                            </label>
+                            <label>
+                                Small Blind: 
+                                <input
+                                    type="number"
+                                    value={maxPlayers}
+                                    onChange={(e) => setMaxPlayers(e.target.value)}
+                                    min="2"
+                                    max="6"
+                                    required
+                                />
+                                
+                            </label>
                             <button type="submit">Create Room</button>
                             <button type="button" onClick={() => setShowModal(false)}>Cancel</button>
                         </form>
