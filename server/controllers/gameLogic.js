@@ -42,6 +42,8 @@ class GameLogic {
         this.smallBlindAmount = smallBlindAmount;
         this.bigBlindAmount = 2 * smallBlindAmount;
         this.maxPlayers = maxPlayers;
+        this.buyIn = buyIn;
+        this.tableLimit = tableLimit;
     }
 
     createDeck = () => {

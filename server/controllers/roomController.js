@@ -4,7 +4,7 @@ const GameState = require('../models/GameState');
 exports.createRoom = async (req, res) => {
     //console.log("createRoom call")
     try {
-        const { name, gameType, maxPlayers } = req.body;
+        const {name, gameType, maxPlayers, buyIn, tableLimit, smallBlind } = req.body;
         // Validate the required fields
         if (!name || !gameType) {
             return res.status(400).json({ message: 'Name and game type are required' });
@@ -29,9 +29,13 @@ exports.createRoom = async (req, res) => {
 
         // Create a new room
         const newRoom = new Room({
+            userId,
             name,
             gameType,
             maxPlayers,
+            buyIn,
+            tableLimit,
+            smallBlind,
             gameState: newGameState._id, // Link the room with its game state
         });
 
