@@ -39,4 +39,8 @@ button {
   box-sizing: border-box;
 }
 
-/* Your existing styles below... */
+.error-message {
+  color: red;
+  font-weight: bold;
+  margin-top: 10px;
+}

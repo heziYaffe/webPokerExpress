@@ -3,8 +3,6 @@ import './PokerTable.css';
 import Card from '../Card/Card';
 
 const PokerTable = ({ communityCards, pot }) => {
-
-    pot = 1000
     
     return (
         <div>

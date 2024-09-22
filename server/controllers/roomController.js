@@ -29,7 +29,7 @@ exports.createRoom = async (req, res) => {
 
         // Create a new room
         const newRoom = new Room({
-            userId,
+            manager: userId,
             name,
             gameType,
             maxPlayers,
@@ -42,7 +42,7 @@ exports.createRoom = async (req, res) => {
         // Save the room to the database
         await newRoom.save();
 
-        //console.log("newRoom: ", newRoom)
+        console.log("newRoom: ", newRoom)
         //console.log("newGameState: ", newGameState)
 
         // Send the created room back to the client
@@ -66,6 +66,25 @@ exports.getRooms = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+exports.getRoom = async (req, res) => {
+    try {
+        // מציאת החדר לפי roomId
+        const room = await Room.findById(req.params.roomId).populate('gameState');
+
+        // בדיקה אם החדר נמצא
+        if (!room) {
+            return res.status(404).json({ message: 'Room not found' });
+        }
+
+        // שליחת החדר חזרה ללקוח
+        res.status(200).json(room);
+    } catch (error) {
+        console.error('Error fetching room:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 
 
 exports.joinRoom = async (req, res) => {

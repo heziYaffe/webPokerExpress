@@ -87,9 +87,11 @@ class GameLogic {
                 winners.forEach(winner => {
                     winner.chips += prizePerWinner;
                 });
-                return {type: "winner", players: winners}
-                this.resetFoldedPlayers(); // החזרת שחקנים פורשים לרשימת השחקנים
-                return { type: "showdawn", cards: [] };
+                this.resetGame()
+
+                //return {type: "winner", players: winners}
+                //return { type: "showdawn", cards: [] };
+
             default:
                 return { type: "endGame", cards: [] };
         }
@@ -151,7 +153,8 @@ class GameLogic {
     }
 
     getGameState = (playerWs) => {
-        const player = this.players.find(p => p.ws === playerWs);
+        const player = this.players.find(p => p.ws === playerWs) || this.foldedPlayers.find(p => p.ws === playerWs);
+
         if (player) {
             const playersList = this.players.map(p => ({
                 username: p.username,
@@ -181,29 +184,48 @@ class GameLogic {
             this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
         }
         switch (action) {
-            case "check":
+            case "Check":
+                console.log("this.bigBlindAmount", this.bigBlindAmount)
+                console.log("player.chips >= this.bigBlindAmount", player.chips >= this.bigBlindAmount)
+                console.log("player.chips", player.chips)
+
+
                 if (player.chips >= this.bigBlindAmount) {
                     player.chips -= this.bigBlindAmount;
                     this.pot += this.bigBlindAmount;
                 }
+
+                console.log("player.chips", player.chips)
+
                 return { type: `player ${playerWs} checked` };
-            case "call":
+            case "Call":
                 if (player.chips >= this.bigBlindAmount) {
                     player.chips -= this.bigBlindAmount;
                     this.pot += this.bigBlindAmount;
                 }
                 return { type: `player ${playerWs} called` };
-            case "raise":
+            case "Raise":
                 return { type: `player ${playerWs} raised` };
-            case "all-in":
+            case "All-in":
                 return { type: `player ${playerWs} is all-in` };
-            case "fold":
+            case "Fold":
                 this.players = this.players.filter(p => p.ws !== playerWs);
                 this.foldedPlayers.push(player);
                 return { type: `player ${playerWs} folded` };
             default:
                 return { type: "", cards: [] };
         }
+    }
+
+    leaveRoom = (ws) => {
+        
+        // הסרת השחקן מרשימת השחקנים הפעילים
+        this.players = this.players.filter(player => player.ws !== ws);
+
+        // הסרת השחקן מרשימת השחקנים הפורשים
+        this.foldedPlayers = this.foldedPlayers.filter(player => player.ws !== ws);
+
+        console.log(`Player with ws: ${ws} has left the room.`);
     }
 
     getPlayer = (ws) => {
@@ -218,6 +240,24 @@ class GameLogic {
             return this.executaStage();
         }
     }
+
+    resetGame = () => {
+        this.resetFoldedPlayers(); // הקריאה ל-resetFoldedPlayers צריכה להיות עם this
+    
+        // הוספת הקלפים הקהילתיים בחזרה לחפיסה
+        this.deck = [...this.deck, ...this.communityCards];
+        this.communityCards = []; // איפוס הקלפים הקהילתיים
+    
+        // הוספת קלפי השחקנים בחזרה לחפיסה ואיפוס הידיים של השחקנים
+        this.players.forEach(player => {
+            this.deck = [...this.deck, ...player.cards]; // הוספת הקלפים לחפיסה
+            player.cards = []; // איפוס היד של השחקן
+        });
+    
+        this.shuffleDeck(); // ערבוב החפיסה מחדש
+    }
+    
+    
 
     resetFoldedPlayers = () => {
         this.players = [...this.players, ...this.foldedPlayers];

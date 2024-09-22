@@ -8,9 +8,9 @@ const RoomList = () => {
     const [showModal, setShowModal] = useState(false); // State to control modal visibility
     const [roomName, setRoomName] = useState(''); // State for room name
     const [maxPlayers, setMaxPlayers] = useState(6); // State for max players
-    const [buyIn, setBuyIn] = useState(0); // State for Buy-In
-    const [tableLimit, setTableLimit] = useState(0); // State for Table Limit
-    const [smallBlind, setSmallBlind] = useState(0); // State for Small Blind
+    const [buyIn, setBuyIn] = useState(100); // State for Buy-In
+    const [tableLimit, setTableLimit] = useState(1000); // State for Table Limit
+    const [smallBlind, setSmallBlind] = useState(10); // State for Small Blind
     const [error, setError] = useState(''); // State for error message
     const navigate = useNavigate();
 
@@ -150,7 +150,7 @@ const RoomList = () => {
                                 />
                             </label>
                             <label>
-                                Buy-In: 
+                                Buy In Limit: 
                                 <input
                                     type="number"
                                     value={buyIn}

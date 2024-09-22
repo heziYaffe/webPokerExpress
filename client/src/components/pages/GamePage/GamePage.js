@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+
 import './GamePage.css';
 import PlayerPanel from '../../games/PlayerPanel/PlayerPanel';
 import PokerTable from '../../games/PokerTable/PokerTable';
@@ -7,7 +8,6 @@ import Player from '../../games/Player/Player';
 import Card from '../../games/Card/Card';
 import { usePlayer } from '../../../context/PlayerContext';
 import _ from 'lodash';
-
 
 const deepEqual = (obj1, obj2) => {
     if (obj1 === obj2) return true;
@@ -36,6 +36,8 @@ const deepEqual = (obj1, obj2) => {
 
 
 const GamePage =  () => {
+    
+    const navigate = useNavigate(); // Initialize the navigate hook
 
     const { roomId } = useParams(); // Get the room ID from the URL
     const { connectedPlayer } = usePlayer(); // Access the connected player's information
@@ -79,6 +81,27 @@ const GamePage =  () => {
     }, [playerCards]);
 
     
+    const leaveRoom = () => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'leaveRoom',
+                roomId: roomId,
+                playerId: connectedPlayer.id
+            }));
+    
+            console.log('Player left the room.');
+            
+            // סגירת חיבור ה-WebSocket לאחר עזיבת החדר
+            wsRef.current.close();
+
+            console.log('Redirecting to lobby');
+            navigate("/lobby")
+
+        } else {
+            console.error('WebSocket is not connected');
+        }
+    };
+
     const updateGameState = (data) => {
 
             console.log("in updateGameState", data)
@@ -165,17 +188,6 @@ const GamePage =  () => {
                 //fetchGameState()
             }
 
-
-            /*if (data.type === 'gameState') {
-                console.log("getGameState");
-                console.log("set game state", data.state);
-                console.log("player chips", data.state.chips);
-
-                setPlayerChips(data.state.chips)
-
-
-            }*/
-
             if (data.type === 'playerCards') {
                 console.log("set player cards", data.cards);
                 setPlayerCards(data.cards)
@@ -201,6 +213,11 @@ const GamePage =  () => {
 
         wsRef.current.onclose = () => {
             console.log(`WebSocket connection closed for room ${roomId}`);
+            /*sendWebSocketMessage({
+                type: 'playerLeft',
+                roomId: roomId,
+                playerId: connectedPlayer.id
+            })*/
         };
 
         // Clean up the WebSocket when the component unmounts
@@ -211,6 +228,14 @@ const GamePage =  () => {
         };
     }, [roomId]);
     
+    const sendWebSocketMessage = (message) => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify(message));
+        } else {
+            console.error('WebSocket is not open. Cannot send message.');
+        }
+    };
+
     // Start game function to send WebSocket message to start the game
     const startGame = () => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -252,8 +277,9 @@ const GamePage =  () => {
             <div className="game-container">
                 <h1 className='game-name'>Texas Hold'em</h1>
                 <button onClick={startGame} className="start-game-btn">Start Game</button>
+                <button onClick={leaveRoom} className="leave-room-btn">Leave Room</button>
                 <div className="poker-table">
-                    <PokerTable communityCards={gameState.communityCards}/>
+                    <PokerTable communityCards={gameState.communityCards} pot={gameState.pot}/>
                     {gameState.players.map((player, index) => {
                         console.log(`Rendering player at index ${index}:`, player.username);
                         return (

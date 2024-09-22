@@ -44,5 +44,18 @@
     cursor: pointer;
     text-decoration: underline;
   }
-  /* Your existing styles below... */
+
+  .error {
+    color: red;
+    font-weight: bold;
+    margin-top: 10px;
+
+
+  }
   
+  .success {
+    color: green;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+    
