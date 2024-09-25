@@ -30,6 +30,7 @@ const fetchingRoom = async (roomId) => {
         }
     } catch (error) {
         console.error(`Error fetching room from database: ${error}`);
+        console.log("in game sockets")
     }
 };
 
@@ -55,7 +56,59 @@ const addPlayerToRoom = (ws, userId, username, roomId, game) => {
     }
 };
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const waitForPlayerAction = (player, timeLimit) => {
+    console.log("wait for player action")
+    return new Promise((resolve) => {
+        
+        // הגדרת השהיית זמן
+        const timer = setTimeout(() => {
+            console.log(`Player ${player.userId} did not respond in time, forcing fold.`);
+            resolve({ action: 'fold', player }); // פעולה אוטומטית - "fold"
+        }, timeLimit);
+        
+
+        // האזנה לפעולה מהשחקן
+        player.ws.once('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'playerActionToRaise') {
+                clearTimeout(timer); // ביטול הטיימר אם השחקן פעל בזמן
+                resolve({ action: data.action, player });
+            }
+        });
+        
+
+        //resolve({ action: "fold", player });
+    });
+};
+
+
+const handleRaise = async(ws, game, roomId) => {
+    console.log("trying to raise")
+    // שחקן העלה, על כל השחקנים האחרים לבצע פעולה
+    for (let i = 0; i < game.players.length; i++) {
+        const player = game.players[i];
+        if (player.ws === ws) {
+            continue
+        }
+        player.ws.send(JSON.stringify({
+            type: 'actionRequest',
+            lastRaiseAmount: game.lastRaiseAmount // סכום ההעלאה שיש להשוות
+        }));
+
+        // המתנה לפעולה של השחקן או למגבלת זמן
+        const { action, player: actingPlayer } = await Promise.race([
+            waitForPlayerAction(player, 30000), // מגבלת זמן של 30 שניות
+        ]);
+
+        console.log(`Player ${actingPlayer.userId} chose to ${action}`);
+        game.setPlayerAction(actingPlayer.ws, action, game.lastRaiseAmount);
+        sendGameStateForAllPlayers(roomId);
+
+    }
+
+}
 const setupWebSocket = (server) => {
     const wss = new WebSocket.Server({ server });
 
@@ -91,32 +144,37 @@ const setupWebSocket = (server) => {
 
         sendGameStateForAllPlayers(roomId);
 
-        ws.on('message', async (message) => {
+        ws.on('message', async (message) => { // Remove extra parenthesis here
             const data = JSON.parse(message);
             console.log(`Received message in room ${roomId}:`, data);
-
+        
             if (data.type === 'startGame' && room.manager === userId) {
                 console.log(`Game started in room ${roomId}`);
                 game.nextStage();
-
-                // שלח לכל שחקן את הקלפים האישיים שלו
+        
+                // Send cards to every player
                 game.players.forEach(player => {
                     const playerCards = game.getPlayer(player.ws)?.cards || [];
                     player.ws.send(JSON.stringify({
                         type: 'playerCards',
-                        cards: playerCards // שליחת הקלפים לשחקן הספציפי
+                        cards: playerCards
                     }));
                     console.log(`Sent cards to player in room ${roomId}:`, playerCards);
                 });
             }
-
+        
             if (data.type === 'playerAction') {
                 console.log(`Player ${data.playerId} in room ${roomId} performed action: ${data.action}`);
-
-                game.setPlayerAction(ws, data.action); // עדכון פעולה של השחקן
-                broadcastToRoom(roomId, {type:`player ${ws} ${data.action}` });
-
-                // אם כל השחקנים ביצעו פעולה, מעבר לשלב הבא
+                const answer = game.setPlayerAction(ws, data.action, data.raiseAmount);
+                console.log("answer", answer);
+        
+                if (answer.raiseAmount) {
+                    handleRaise(ws, game, roomId); // Handle player raise logic
+                }
+        
+                broadcastToRoom(roomId, { type: `player ${ws} ${data.action}` });
+        
+                // Move to next stage if all players have acted
                 if (game.allPlayersHaveActed()) {
                     const stageData = game.nextStage();
                     if (stageData) {
@@ -126,34 +184,29 @@ const setupWebSocket = (server) => {
                         console.log("game is over");
                     }
                 }
-
+        
                 sendGameStateForAllPlayers(roomId);
             }
-
+        
             if (data.type === 'leaveRoom') {
                 console.log(`Player ${data.playerId} in room ${roomId} Leave`);
-                game.leaveRoom(ws)
-
+                game.leaveRoom(ws);
+        
                 try {
-
                     const room = await Room.findById(roomId).populate('gameState');
-                    
-                    // עדכון המצב של GameState
                     await GameState.findByIdAndUpdate(room.gameState._id, {
-                        $pull: { playerCards: { player: data.playerId }
-                    }
+                        $pull: { playerCards: { player: data.playerId } }
                     });
-
                     console.log(`Player ${data.playerId} removed from room ${roomId}.`);
-                    
                 } catch (error) {
                     console.error(`Failed to remove player ${data.playerId} from room ${roomId} in DB:`, error);
                 }
-
+        
                 sendGameStateForAllPlayers(roomId);
             }
-
-        });
+        }); // Closing brace for ws.on('message')
+        
+    
 
         ws.on('close', async () => {
             console.log(`A client disconnected from room ${roomId}`);

@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import './GamePage.css';
 import PlayerPanel from '../../games/PlayerPanel/PlayerPanel';
 import PokerTable from '../../games/PokerTable/PokerTable';
+import ActionsModal from '../../games/ActionsModal/ActionsModal';
+
 import Player from '../../games/Player/Player';
 import Card from '../../games/Card/Card';
 import { usePlayer } from '../../../context/PlayerContext';
@@ -38,6 +40,9 @@ const deepEqual = (obj1, obj2) => {
 const GamePage =  () => {
     
     const navigate = useNavigate(); // Initialize the navigate hook
+
+    const [lastRaiseAmount, setLastRaiseAmount] = useState(0);
+    const [showActionsModal, setShowActionsModal] = useState(false);
 
     const { roomId } = useParams(); // Get the room ID from the URL
     const { connectedPlayer } = usePlayer(); // Access the connected player's information
@@ -209,6 +214,15 @@ const GamePage =  () => {
                 updateCommunityCards(data.cards)
             }
 
+            if (data.type === "actionRequest") {
+                console.log("action request for raise", data.lastRaiseAmount);
+
+                // Show the modal with options and the last raise amount
+                setLastRaiseAmount(data.lastRaiseAmount);
+                setShowActionsModal(true);
+
+            }
+
         };
 
         wsRef.current.onclose = () => {
@@ -248,28 +262,49 @@ const GamePage =  () => {
     };
 
 
-    const handlePlayerAction = async (action) => {
-        /*if (gameState.status !== 'in-game') {
-            console.log("The game hasn't started yet.");
-            return; // אם המשחק לא התחיל, פשוט אל תעשה כלום
-        }*/
-    
-        // בדוק אם החיבור ל-WebSocket פעיל
+    const handlePlayerAction = async (action, raiseAmount = 0) => {
+        // If the game isn't in progress, do nothing
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            // שלח את הודעת הפעולה לשרת דרך ה-WebSocket
+            // Send the player action to the server via WebSocket
             wsRef.current.send(JSON.stringify({
                 type: 'playerAction',
-                action: action, // הפעולה כמו 'fold', 'raise' וכו'
-                playerId: connectedPlayer.id, // מזהה השחקן
-                currentPlayer: gameState.currentPlayer % gameState.players.length, // השחקן הנוכחי
+                action: action, // The action, such as 'Raise', 'Check', or 'Fold'
+                raiseAmount: raiseAmount,  // Send the raise amount if it's a raise action
+                playerId: connectedPlayer.id, // The player's ID
+                currentPlayer: gameState.currentPlayer % gameState.players.length, // Current player
             }));
-    
-            console.log(`Sent player action: ${action} to server via WebSocket`);
+            
+            console.log(`Sent player action: ${action} (Raise: ${raiseAmount}) to server via WebSocket`);
         } else {
             console.error('WebSocket is not connected');
         }
     };
     
+    const handleActionSelect = (action) => {
+        console.log("player choose to", action)
+        setShowActionsModal(false); // Close the modal
+
+        // If the game isn't in progress, do nothing
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            // Send the player action to the server via WebSocket
+            wsRef.current.send(JSON.stringify({
+                type: 'playerActionToRaise',
+                action: action, // The action, such as 'Raise', 'Check', or 'Fold'
+                //raiseAmount: ,
+                playerId: connectedPlayer.id, // The player's ID
+                currentPlayer: gameState.currentPlayer % gameState.players.length, // Current player
+            }));
+            
+            //console.log(`Sent player action: ${action} (Raise: ${raiseAmount}) to server via WebSocket`);
+        } else {
+            console.error('WebSocket is not connected');
+        }
+
+    };
+
+    const closeModal = () => {
+        setShowActionsModal(false);
+    };
 
 
     return (
@@ -313,6 +348,18 @@ const GamePage =  () => {
                     <p>Chips: ${gameState.chips}</p>
                 </div>
         </div>
+        
+        {/* Show Action Modal */}
+        {showActionsModal && (
+            <div className='actions-Modal'>
+
+                <ActionsModal 
+                    lastRaiseAmount={lastRaiseAmount} 
+                    onActionSelect={handleActionSelect} 
+                    onClose={closeModal} 
+                />
+            </div>)
+            }
 
         {/* PlayerPanel Actions */}
         {gameState.players[gameState.currentPlayer] && connectedPlayer?.id === gameState.players[gameState.currentPlayer].userId && gameState.status < 4 && (

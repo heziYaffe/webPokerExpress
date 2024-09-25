@@ -9,14 +9,6 @@ const roomSchema = new mongoose.Schema({
     tableLimit: { type: Number, default: 1000 },
     smallBlind: { type: Number, default: 10 },
     gameState: { type: mongoose.Schema.Types.ObjectId, ref: 'GameState' },
-
-    //game: { type: mongoose.Schema.Types.ObjectId, ref: 'Game' },
-    //players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Array of connected players (referencing the User model)
-    /*status: {     // Room status (e.g., waiting, in-game, completed)
-        type: String, 
-        enum: ['waiting', 'in-game', 'completed'], 
-        default: 'waiting' 
-    }*/
 });
 
 module.exports = mongoose.model('Room', roomSchema);
