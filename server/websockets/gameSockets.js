@@ -73,42 +73,66 @@ const waitForPlayerAction = (player, timeLimit) => {
         player.ws.once('message', (message) => {
             const data = JSON.parse(message);
             if (data.type === 'playerActionToRaise') {
+                console.log("get message with type playerActionToRaise")
                 clearTimeout(timer); // ביטול הטיימר אם השחקן פעל בזמן
-                resolve({ action: data.action, player });
+                resolve({ action: data.action, player, raiseAmount: data.raiseAmount });
             }
         });
         
 
-        //resolve({ action: "fold", player });
     });
 };
 
 
 const handleRaise = async(ws, game, roomId) => {
-    console.log("trying to raise")
-    // שחקן העלה, על כל השחקנים האחרים לבצע פעולה
-    for (let i = 0; i < game.players.length; i++) {
-        const player = game.players[i];
-        if (player.ws === ws) {
-            continue
+    console.log("starting raise round...");
+    let raiseHappened = true;
+
+    // נמשיך לשאול את השחקנים עד שלא יקרה רירייז נוסף
+    while (raiseHappened) {
+        raiseHappened = false;
+
+        // עוברים על כל השחקנים
+        for (let i = 0; i < game.players.length; i++) {
+            const player = game.players[i];
+
+            // דילוג על השחקן שביצע את ה-raise הנוכחי
+            if (player.ws === ws) {
+                continue;
+            }
+
+            // שולחים לשחקן בקשה לפעולה עם הסכום החדש של ה-raise
+            player.ws.send(JSON.stringify({
+                type: 'actionRequest',
+                lastRaiseAmount: game.lastRaiseAmount // סכום ההעלאה החדש שיש להשוות
+            }));
+
+            sendGameStateForAllPlayers(roomId);
+
+            // ממתינים לפעולה מהשחקן או לפקיעת הזמן
+            const { action, player: actingPlayer, raiseAmount } = await Promise.race([
+                waitForPlayerAction(player, 30000), // מגבלת זמן של 30 שניות
+            ]);
+
+            console.log(`Player ${actingPlayer.userId} chose to ${action}`);
+
+            // מבצעים את הפעולה של השחקן (check, fold, call, raise)
+            const result = game.setPlayerAction(actingPlayer.ws, action, raiseAmount);
+
+            // אם שחקן עשה raise נוסף, מפסיקים את הלולאה ומתחילים מחדש
+            if (result.raiseAmount) {
+                ws = actingPlayer.ws;
+                console.log(`Player ${actingPlayer.userId} did a re-raise`);
+                raiseHappened = true;
+                break; // יוצאים מהלולאה כדי להתחיל שוב עם הסכום החדש של ה-raise
+            }
         }
-        player.ws.send(JSON.stringify({
-            type: 'actionRequest',
-            lastRaiseAmount: game.lastRaiseAmount // סכום ההעלאה שיש להשוות
-        }));
 
-        // המתנה לפעולה של השחקן או למגבלת זמן
-        const { action, player: actingPlayer } = await Promise.race([
-            waitForPlayerAction(player, 30000), // מגבלת זמן של 30 שניות
-        ]);
-
-        console.log(`Player ${actingPlayer.userId} chose to ${action}`);
-        game.setPlayerAction(actingPlayer.ws, action, game.lastRaiseAmount);
+        // שליחת עדכון לכל השחקנים לאחר סיבוב
         sendGameStateForAllPlayers(roomId);
-
     }
+};
 
-}
 const setupWebSocket = (server) => {
     const wss = new WebSocket.Server({ server });
 
@@ -143,6 +167,7 @@ const setupWebSocket = (server) => {
             
 
         sendGameStateForAllPlayers(roomId);
+        sendRoomManagerForAllPlayers(roomId)
 
         ws.on('message', async (message) => { // Remove extra parenthesis here
             const data = JSON.parse(message);
@@ -164,27 +189,51 @@ const setupWebSocket = (server) => {
             }
         
             if (data.type === 'playerAction') {
-                console.log(`Player ${data.playerId} in room ${roomId} performed action: ${data.action}`);
+                console.log(`Player ${data.playerId} in room ${roomId} performed action: ${data.action}`); 
                 const answer = game.setPlayerAction(ws, data.action, data.raiseAmount);
-                console.log("answer", answer);
-        
-                if (answer.raiseAmount) {
-                    handleRaise(ws, game, roomId); // Handle player raise logic
-                }
-        
+
                 broadcastToRoom(roomId, { type: `player ${ws} ${data.action}` });
-        
-                // Move to next stage if all players have acted
-                if (game.allPlayersHaveActed()) {
-                    const stageData = game.nextStage();
+
+                let stageData = null;
+
+                if (data.action == 'Raise') {
+                    console.log("in data.action == 'Raise'")
+
+                    await handleRaise(ws, game, roomId); // Handle player raise logic
+                    stageData = game.nextStage();
+
                     if (stageData) {
-                        console.log(`Dealing ${stageData.type}, cards ${JSON.stringify(stageData.cards)} in room ${roomId}`);
-                        broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
-                    } else {
-                        console.log("game is over");
+                        if (winners) {
+                            broadcastToRoom(roomId, { type: "winners", winners: stageData.winners });
+                        } else {
+                            console.log(`Dealing ${stageData.type}, cards ${JSON.stringify(stageData.cards)} in room ${roomId}`);
+                            broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
+                        }
                     }
+
+                } else {
+
+                    console.log("in data.action != 'Raise'")
+                    // Move to next stage if all players have acted
+                    if (game.allPlayersHaveActed()) {
+                        stageData = game.nextStage();
+
+                        if (stageData) {
+                            console.log(`Dealing ${stageData.type}, cards ${JSON.stringify(stageData.cards)} in room ${roomId}`);
+                            broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
+                        }
+
+                    }
+
                 }
-        
+                
+                console.log("get game stage", game.getStage());
+
+                if (game.getStage() == -1) {
+                    console.log("game is over");
+                    broadcastToRoom(roomId, { type: "endGame" });
+                }
+
                 sendGameStateForAllPlayers(roomId);
             }
         
@@ -315,6 +364,24 @@ const sendGameStateForAllPlayers = (roomId) => {
         }
     }
 };
+
+sendRoomManagerForAllPlayers = (roomId) => {
+    
+    if (rooms[roomId]) {
+        const room = rooms[roomId].room;
+        const game = rooms[roomId].game;
+        const players = [...game.players, ...game.foldedPlayers]
+        if (game.players && game.players.length > 0) {
+            // שליחת עדכון לכל שחקן על המצב שלו
+            players.forEach(player => {
+                player.ws.send(JSON.stringify({
+                    type: 'roomManager',
+                    manager: room.manager // שליחת המצב של כל שחקן לשחקן הספציפי
+                }));
+            });
+        }
+    }
+}
 
 
 module.exports = {

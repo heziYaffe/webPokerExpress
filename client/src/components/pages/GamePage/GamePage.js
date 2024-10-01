@@ -44,21 +44,34 @@ const GamePage =  () => {
     const [lastRaiseAmount, setLastRaiseAmount] = useState(0);
     const [showActionsModal, setShowActionsModal] = useState(false);
 
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [showDefeat, setShowDefeat] = useState(false);
+    const [winner, setWinner] = useState(null);
+
     const { roomId } = useParams(); // Get the room ID from the URL
     const { connectedPlayer } = usePlayer(); // Access the connected player's information
+    const [gameStarted, setGameStarted] = useState(false); // סטייט חדש לניהול מצב התחלת המשחק
     const [gameState, setGameState] = useState({
         players: [],
         communityCards: [],
         pot: 0,
         chips: 0,
         status: 'waiting',
-        currentPlayer: 0
+        currentPlayer: 0,
+        manager: null
     });
 
     const updateCommunityCards = (newCards) => {
         setGameState(prevState => ({
             ...prevState,
             communityCards: [...prevState.communityCards, ...newCards] // הוספת הקלפים החדשים לקיימים
+        }));
+    };
+
+    const updateRoomManager = (roomManager) => {
+        setGameState(prevState => ({
+            ...prevState,
+            manager: roomManager // הוספת הקלפים החדשים לקיימים
         }));
     };
     
@@ -78,7 +91,7 @@ const GamePage =  () => {
     useEffect(() => {
         //setPlayerChips(100)
         console.log("GameState has changed:", gameState);
-        console.log("current player", gameState.currentPlayer % 3);
+        console.log("current player", gameState.currentPlayer % gameState.players.length);
     }, [gameState]);
 
     useEffect(() => {
@@ -87,25 +100,31 @@ const GamePage =  () => {
 
     
     const leaveRoom = () => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-                type: 'leaveRoom',
-                roomId: roomId,
-                playerId: connectedPlayer.id
-            }));
+        const confirmed = window.confirm('Are you sure you want to leave the room?');
+        
+        if (confirmed) {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'leaveRoom',
+                    roomId: roomId,
+                    playerId: connectedPlayer.id
+                }));
     
-            console.log('Player left the room.');
-            
-            // סגירת חיבור ה-WebSocket לאחר עזיבת החדר
-            wsRef.current.close();
-
-            console.log('Redirecting to lobby');
-            navigate("/lobby")
-
+                console.log('Player left the room.');
+                
+                // סגירת חיבור ה-WebSocket לאחר עזיבת החדר
+                wsRef.current.close();
+    
+                console.log('Redirecting to lobby');
+                navigate("/lobby");
+            } else {
+                console.error('WebSocket is not connected');
+            }
         } else {
-            console.error('WebSocket is not connected');
+            console.log('Player decided to stay in the room.');
         }
     };
+    
 
     const updateGameState = (data) => {
 
@@ -117,7 +136,8 @@ const GamePage =  () => {
                     pot: data.pot !== undefined ? data.pot : prevState.pot,
                     status: data.stage,
                     currentPlayer: data.currentPlayer,
-                    chips: data.chips || prevState.chips
+                    chips: data.chips || prevState.chips,
+                    manager: prevState.manager
                 };
             });
 
@@ -160,6 +180,53 @@ const GamePage =  () => {
         }
     };
 
+
+    const generateConfetti = () => {
+        const confettiContainer = document.getElementById('confetti-container');
+        if (confettiContainer) {
+        const confettiColors = ['#FFC700', '#FF0000', '#2E3192', '#41BBC7', '#FFFFFF'];
+        const numConfetti = 100; // Adjust as needed
+
+        for (let i = 0; i < numConfetti; i++) {
+            const confetti = document.createElement('div');
+            confetti.classList.add('confetti-piece');
+
+            // Randomize color
+            confetti.style.backgroundColor =
+            confettiColors[Math.floor(Math.random() * confettiColors.length)];
+
+            // Random horizontal position
+            confetti.style.left = Math.random() * 100 + 'vw';
+
+            // Random animation duration and delay
+            confetti.style.animationDuration = 2 + Math.random() * 3 + 's'; // Between 2-5 seconds
+            confetti.style.animationDelay = Math.random() * 2 + 's'; // Between 0-2 seconds
+
+            // Random horizontal movement
+            const xMove = Math.random() * 200 - 100 + 'px'; // Between -100px to 100px
+            confetti.style.setProperty('--x-move', xMove);
+
+            confettiContainer.appendChild(confetti);
+
+            // Remove confetti after animation ends
+            setTimeout(() => {
+            confetti.remove();
+            }, 7000); // Adjust to match max animation duration
+        }
+        }
+    };
+
+    useEffect(() => {
+        if (showConfetti) {
+        generateConfetti();
+        }
+    }, [showConfetti]);
+
+    useEffect(() => {
+        console.log("Confetti state updated:", showConfetti);
+    }, [showConfetti]);
+
+    
     useEffect(() => {
         console.log("useEffect is running to fetch game state");
 
@@ -181,9 +248,40 @@ const GamePage =  () => {
 
             console.log('Received WebSocket message data parsed:', data);
 
+            if (data.type === 'roomManager') {
+                console.log("room manager is", data.manager);
+                updateRoomManager(data.manager);
+            }
+
             if (data.type === 'startGame') {
                 console.log("game started");
                 startGame();
+                setGameStarted(true)
+            }
+
+            if (data.type === 'endGame') {
+                console.log("game ended");
+                setPlayerCards([])
+                setGameStarted(false)
+            }
+
+            if (data.type === 'winners') {
+                const winners = data.winners;
+
+                // בדוק אם השחקן הנוכחי הוא מנצח או מפסיד
+                if (winners.includes(connectedPlayer.id)) {
+                    //setWinner(true);
+                    setShowConfetti(true);
+                } else {
+                    //setWinner(false);
+                    setShowDefeat(true);
+                }
+
+                // הסרת האנימציות לאחר 5 שניות
+                setTimeout(() => {
+                    setShowConfetti(false);
+                    setShowDefeat(false);
+                }, 5000);
             }
 
             if (data.type === 'gameUpdate') {
@@ -258,6 +356,7 @@ const GamePage =  () => {
                 roomId: roomId,
             }));
             console.log('Game start request sent via WebSocket');
+            setGameStarted(true)
         }
     };
 
@@ -280,7 +379,7 @@ const GamePage =  () => {
         }
     };
     
-    const handleActionSelect = (action) => {
+    const handleActionSelect = (action, raiseAmount = 0) => {
         console.log("player choose to", action)
         setShowActionsModal(false); // Close the modal
 
@@ -290,11 +389,22 @@ const GamePage =  () => {
             wsRef.current.send(JSON.stringify({
                 type: 'playerActionToRaise',
                 action: action, // The action, such as 'Raise', 'Check', or 'Fold'
-                //raiseAmount: ,
+                raiseAmount: raiseAmount,
                 playerId: connectedPlayer.id, // The player's ID
                 currentPlayer: gameState.currentPlayer % gameState.players.length, // Current player
             }));
-            
+
+
+            /*
+            wsRef.current.send(JSON.stringify({
+                type: 'playerAction',
+                action: action, // The action, such as 'Raise', 'Check', or 'Fold'
+                raiseAmount: raiseAmount,
+                playerId: connectedPlayer.id, // The player's ID
+                currentPlayer: gameState.currentPlayer % gameState.players.length, // Current player
+            }));
+            */
+
             //console.log(`Sent player action: ${action} (Raise: ${raiseAmount}) to server via WebSocket`);
         } else {
             console.error('WebSocket is not connected');
@@ -311,8 +421,33 @@ const GamePage =  () => {
         <div className='gameBackground'>
             <div className="game-container">
                 <h1 className='game-name'>Texas Hold'em</h1>
-                <button onClick={startGame} className="start-game-btn">Start Game</button>
+                                {/* הצגת אנימציה של הקונפטי */}
+                    {showConfetti && <div id="confetti-container" className="confetti"></div>}
+
+                    {/* הצגת הודעת הניצחון */}
+                    {showConfetti && (
+                        <div className='victory'>
+                            Congratulations, You Win!
+                        </div>
+                    )}
+
+                    {/* אנימציה להפסד למפסידים */}
+                    {showDefeat && (
+                        <div className="defeat">
+                            You lost! The winner is: {winner}
+                        </div>
+                    )}
+
+                {
+                console.log("room manager: ", gameState.manager)}
+                {console.log("connectedPlayer.id: ", connectedPlayer.id)}
+                
+                <div className="button-container">
+                {gameState.manager === connectedPlayer.id && !gameStarted && (
+                    <button onClick={startGame} className="start-game-btn">Start Game</button>
+                )}
                 <button onClick={leaveRoom} className="leave-room-btn">Leave Room</button>
+                </div>
                 <div className="poker-table">
                     <PokerTable communityCards={gameState.communityCards} pot={gameState.pot}/>
                     {gameState.players.map((player, index) => {
@@ -362,7 +497,7 @@ const GamePage =  () => {
             }
 
         {/* PlayerPanel Actions */}
-        {gameState.players[gameState.currentPlayer] && connectedPlayer?.id === gameState.players[gameState.currentPlayer].userId && gameState.status < 4 && (
+        {gameState.players[gameState.currentPlayer] &&  !showActionsModal && connectedPlayer?.id === gameState.players[gameState.currentPlayer].userId && gameState.status < 4 && (
             <PlayerPanel player={gameState.players[gameState.currentPlayer]} onAction={handlePlayerAction} />
         )}
     </div>

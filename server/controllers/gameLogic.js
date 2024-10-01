@@ -76,11 +76,11 @@ class GameLogic {
             case this.START:
                 break;
             case this.FLOP:
-                return { type: "flop", cards: this.dealFlop() };
+                return { type: "flop", cards: this.dealFlop(), stage: this.stage };
             case this.TURN:
-                return { type: "turn", cards: this.dealTurn() };
+                return { type: "turn", cards: this.dealTurn(), stage: this.stage };
             case this.RIVER:
-                return { type: "river", cards: this.dealRiver() };
+                return { type: "river", cards: this.dealRiver(), stage: this.stage };
             case this.SHOWDAWN:
                 const winners = this.determineWinner(this.players, this.communityCards);
                 console.log("The winners are:", winners);
@@ -89,12 +89,10 @@ class GameLogic {
                     winner.chips += prizePerWinner;
                 });
                 this.resetGame()
-
-                //return {type: "winner", players: winners}
-                //return { type: "showdawn", cards: [] };
+                return { type: "showdawn", cards: [], winners: winners, stage: this.stage};
 
             default:
-                return { type: "endGame", cards: [] };
+                return { type: "endGame", cards: [], stage: this.stage};
         }
     }
 
@@ -131,15 +129,17 @@ class GameLogic {
             ws,
             cards: playerCards,
             hasActed: false,
-            chips: 10000
+            chips: 10000,
+            lastBet: 0
         };
         this.players.push(player);  // הוסף את השחקן לרשימת השחקנים
         console.log("players in game logic", this.players);
     }
 
-    resetPlayerActions = () => {
+    resetPlayersState = () => {
         this.players.forEach(player => {
             player.hasActed = false; // אתחול הפעולות של השחקנים
+            player.lastBet = 0;
         });
     }
 
@@ -184,6 +184,10 @@ class GameLogic {
             player.hasActed = true;
             this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
         }
+
+        let playerLastBet = 0;
+        let returnMessage = "";
+
         switch (action) {
             case "Check":
                 console.log("this.bigBlindAmount", this.bigBlindAmount)
@@ -194,50 +198,63 @@ class GameLogic {
                 if (player.chips >= this.bigBlindAmount) {
                     player.chips -= this.bigBlindAmount;
                     this.pot += this.bigBlindAmount;
+                    playerLastBet = this.bigBlindAmount;
                 }
 
-                return { type: `player ${playerWs} checked` };
+                returnMessage = { type: `player ${playerWs} checked` };
+                break;
+
             case "Call":
                 console.log("raiseAmount", raiseAmount)
                 console.log("player.chips >= raiseAmount + this.bigBlindAmount", player.chips >= raiseAmount + this.bigBlindAmount)
                 console.log("player.chips", player.chips)
 
-                if (player.chips >= raiseAmount + this.bigBlindAmount) {
-                    player.chips -= raiseAmount + this.bigBlindAmount;
-                    this.pot += raiseAmount + this.bigBlindAmount;
+                if (player.chips >= raiseAmount + this.bigBlindAmount - player.lastBet) {
+                    player.chips -= raiseAmount + this.bigBlindAmount - player.lastBet;
+                    this.pot += raiseAmount + this.bigBlindAmount - player.lastBet;
+                    playerLastBet += raiseAmount + this.bigBlindAmount;
 
                     console.log("raiseAmount", raiseAmount)
                     console.log("player.chips >= raiseAmount + this.bigBlindAmount", player.chips >= raiseAmount + this.bigBlindAmount)
                     console.log("player.chips", player.chips)
                 }
-                return { type: `player ${playerWs} called` };
+                returnMessage = { type: `player ${playerWs} called` };
+                break;
             case "Raise":
                 console.log("raiseAmount", raiseAmount )
                 console.log("this.lastRaiseAmount * 2", this.lastRaiseAmount * 2 )
 
                 console.log("raiseAmount >= this.lastRaiseAmount * 2", raiseAmount >= this.lastRaiseAmount * 2)
                 if (raiseAmount >= this.lastRaiseAmount * 2) {
-                    if (player.chips >= raiseAmount + this.bigBlindAmount) {
-                        player.chips -= raiseAmount + this.bigBlindAmount;
-                        this.pot += raiseAmount + this.bigBlindAmount;
+                    if (player.chips >= raiseAmount + this.bigBlindAmount - player.lastBet) {
+                        player.chips -= raiseAmount + this.bigBlindAmount - player.lastBet;
+                        this.pot += raiseAmount + this.bigBlindAmount - player.lastBet;
                         this.lastRaiseAmount = raiseAmount
+                        playerLastBet += raiseAmount + this.bigBlindAmount
                     }
                     console.log("player raise with", raiseAmount)
-                    return { type: `player ${playerWs} raised`, raiseAmount: raiseAmount };
+                    returnMessage =  { type: `player ${playerWs} raised`, raiseAmount: raiseAmount };
+                } else {
+                    returnMessage = { type: `player ${playerWs} is trying to raise but the raising amount is too low` };
                 }
-                return { type: `player ${playerWs} is trying to raise but the raising amount is too low` };
+                break;
             case "All-in":
                 this.pot += player.chips ;
                 player.chips = 0;
                 
-                return { type: `player ${playerWs} is all-in` };
+                returnMessage = { type: `player ${playerWs} is all-in` };
+                break;
             case "Fold":
                 this.players = this.players.filter(p => p.ws !== playerWs);
                 this.foldedPlayers.push(player);
-                return { type: `player ${playerWs} folded` };
+                returnMessage = { type: `player ${playerWs} folded` };
+                break;
             default:
-                return { type: "", cards: [] };
+                returnMessage = { type: "", cards: [] };
+                break;
         }
+        player.lastBet = playerLastBet;
+        return returnMessage;
     }
 
     leaveRoom = (ws) => {
@@ -256,12 +273,20 @@ class GameLogic {
     }
 
     nextStage = () => {
+
+        console.log("current stage", this.stage);
+
         if (this.stage < 4) {
             this.stage++;
-            this.resetPlayerActions();
+            console.log("next stage", this.stage);
+            this.resetPlayersState();
             this.updateBlinds();
+            this.lastRaiseAmount = this.bigBlindAmount;
+            this.currentPlayer = 0;
             return this.executaStage();
         }
+
+
     }
 
     resetGame = () => {
@@ -270,19 +295,27 @@ class GameLogic {
         // הוספת הקלפים הקהילתיים בחזרה לחפיסה
         this.deck = [...this.deck, ...this.communityCards];
         this.communityCards = []; // איפוס הקלפים הקהילתיים
+        this.flop = [];
+        this.turn = [];
+        this.river = [];
         this.pot = 0;
     
+
         // הוספת קלפי השחקנים בחזרה לחפיסה ואיפוס הידיים של השחקנים
         this.players.forEach(player => {
             this.deck = [...this.deck, ...player.cards]; // הוספת הקלפים לחפיסה
             player.cards = []; // איפוס היד של השחקן
         });
+
+        this.stage = -1
     
         this.shuffleDeck(); // ערבוב החפיסה מחדש
     }
     
     
-
+    getStage = () => {
+        return this.stage;
+    }
     resetFoldedPlayers = () => {
         this.players = [...this.players, ...this.foldedPlayers];
         this.foldedPlayers = [];
