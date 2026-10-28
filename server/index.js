@@ -1,49 +1,25 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
 const http = require('http');
+const mongoose = require('mongoose');
+const config = require('./config');
+const logger = require('./utils/logger');
+const app = require('./app');
 const { setupWebSocket } = require('./websockets/gameSockets');
 
-const authRoutes = require('./routes/auth');
-const gameRoutes = require('./routes/game');
-const roomRoutes = require('./routes/room');
-const adminRoutes = require('./routes/admin');
+const start = async () => {
+    try {
+        await mongoose.connect(config.mongoUri);
+        logger.info('MongoDB connected');
+    } catch (err) {
+        logger.error('MongoDB connection error:', err.message);
+        process.exit(1);
+    }
 
+    const server = http.createServer(app);
+    setupWebSocket(server);
 
+    server.listen(config.port, () => {
+        logger.info(`Server running on port ${config.port}`);
+    });
+};
 
-require('dotenv').config({ path: './config/.env' }); // Adjust the path as necessary
-
-const app = express();
-const PORT = process.env.PORT || 5003;
-
-// Connect to MongoDB
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mydatabase';
-mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB connection error:', err));
-
-// Middleware
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-}));
-
-app.use(express.static('public'));
-app.use(express.json());
-
-app.use('/api/auth', authRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/rooms', roomRoutes);
-app.use('/api/admin', adminRoutes);
-
-// Create HTTP server
-const server = http.createServer(app);
-
-// Setup WebSocket
-setupWebSocket(server);
-
-// Start the Server
-server.listen(PORT, () => { // Use server.listen instead of app.listen
-    console.log(`Server running on port ${PORT}`);
-});
+start();

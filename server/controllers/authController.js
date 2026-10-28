@@ -1,52 +1,48 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-require('dotenv').config({ path: './config/.env' }); // Adjust the path as necessary
-const jwtSecret = process.env.JWT_SECRET || 'your_secret_key';
+const config = require('../config');
+const logger = require('../utils/logger');
 
+// POST /api/auth/register  (body validated by credentialsSchema)
 exports.register = async (req, res) => {
-    console.log("Received a registration request");
     const { username, password } = req.body;
 
     try {
         const existingUser = await User.findOne({ username });
         if (existingUser) {
-            return res.status(400).json({ message: 'Username already taken' });
+            return res.status(409).json({ message: 'Username already taken' });
         }
 
         const newUser = new User({ username, password });
         await newUser.save();
-        console.log("New user registered successfully:", newUser);
+        logger.info(`New user registered: ${username}`);
         res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
-        console.error('Error registering user:', error);
+        logger.error('Error registering user:', error.message);
         res.status(500).json({ message: 'Error registering user' });
     }
 };
 
+// POST /api/auth/login  (body validated by loginSchema)
 exports.login = async (req, res) => {
     const { username, password } = req.body;
-    console.log("username:", username);
-    console.log("password:", password);
 
     try {
         const user = await User.findOne({ username });
-        console.log("user", user)
-        if (!user) {
-            return res.status(401).json({ message: "Login failed: Invalid username or password" });
+        // Same message for unknown user / bad password to avoid user enumeration.
+        if (!user || !(await user.comparePassword(password))) {
+            return res.status(401).json({ message: 'Invalid username or password' });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Login failed: Invalid username or password" });
-        }
-
-        const token = jwt.sign({ userId: user._id, username: user.username}, jwtSecret || 'your_secret_key', { expiresIn: '1h' });
-        console.log("token", token)
-        console.log("User authenticated successfully");
-        res.status(200).json({ message: "Login successful", token: token});
+        const token = jwt.sign(
+            { userId: user._id.toString(), username: user.username, role: user.role },
+            config.jwtSecret,
+            { expiresIn: config.jwtExpiresIn }
+        );
+        logger.info(`User logged in: ${user.username}`);
+        res.status(200).json({ message: 'Login successful', token });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: "Internal server error" });
+        logger.error('Login error:', error.message);
+        res.status(500).json({ message: 'Internal server error' });
     }
 };
