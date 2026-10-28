@@ -1,2 +1,19 @@
+# dependencies
 node_modules/
+
+# env files (keep the .example templates)
 .env
+.env.*
+!.env.example
+
+# build output / coverage
+build/
+dist/
+coverage/
+
+# logs & OS/editor files
+*.log
+npm-debug.log*
+.DS_Store
+.vscode/
+.idea/
