@@ -1,50 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './PlayerPanel.css';
 
-const PlayerPanel = ({ player, onAction }) => {
-    const [showRaiseModal, setShowRaiseModal] = useState(false);  // State to control modal visibility
-    const [raiseAmount, setRaiseAmount] = useState(100);  // Default raise amount
+/** Action bar shown when it is the player's turn. */
+const PlayerPanel = ({ chips, toCall = 0, minRaise = 1, onAction }) => {
+    const [raiseAmount, setRaiseAmount] = useState(minRaise);
+    useEffect(() => setRaiseAmount(minRaise), [minRaise]);
 
-    // Function to handle opening the raise modal
-    const handleRaiseClick = () => {
-        setShowRaiseModal(true);  // Show the raise modal when "Raise" is clicked
-    };
-
-    // Function to handle raising action
-    const handleRaiseSubmit = () => {
-        setShowRaiseModal(false);  // Close the modal after submitting
-        onAction('Raise', raiseAmount);  // Pass the raise amount to the parent component
-    };
+    const maxRaise = Math.max(0, chips - toCall);
+    const canRaise = maxRaise >= minRaise;
+    const invalidRaise = !Number.isInteger(raiseAmount) || raiseAmount < minRaise || raiseAmount > maxRaise;
 
     return (
-        <div className="player-panel">
-            <div className="chips">
-                <p>Chips: ${player.chips}</p> {/* Display the player's chips */}
+        <div className="action-bar" role="group" aria-label="Your action">
+            <button onClick={() => onAction('Fold')} className="btn btn-ghost action-fold">Fold</button>
+            <button onClick={() => onAction('Check')} className="btn btn-primary">
+                {toCall > 0 ? `Call ${Math.min(toCall, chips)}` : 'Check'}
+            </button>
+            <div className="raise-group">
+                <input
+                    className="input"
+                    type="number"
+                    aria-label="Raise amount"
+                    value={raiseAmount}
+                    min={minRaise}
+                    max={maxRaise}
+                    step={1}
+                    disabled={!canRaise}
+                    onChange={(e) => setRaiseAmount(Number(e.target.value))}
+                />
+                <button onClick={() => onAction('Raise', raiseAmount)} className="btn btn-accent" disabled={!canRaise || invalidRaise}>
+                    Raise
+                </button>
             </div>
-            <div className="actions">
-                <button onClick={handleRaiseClick} className="raise">RAISE</button>
-                <button onClick={() => onAction('Check')} className="check">CHECK</button>
-                <button onClick={() => onAction('Fold')} className="fold">FOLD</button>
-            </div>
-
-            {/* Modal for Raise */}
-            {showRaiseModal && (
-                <div className="player-panel-modal">
-                    <div className="player-panel-modal-content">
-                        <h3>Enter Raise Amount</h3>
-                        <input
-                            type="number"
-                            value={raiseAmount}
-                            onChange={(e) => setRaiseAmount(Number(e.target.value))}  // Update raise amount
-                            min={100}  // You can customize this as needed
-                        />
-                        <div className="player-panel-modal-actions">
-                            <button onClick={handleRaiseSubmit} className="confirm">CONFIRM</button>
-                            <button onClick={() => setShowRaiseModal(false)} className="cancel">CANCEL</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

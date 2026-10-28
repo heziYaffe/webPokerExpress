@@ -1,33 +1,17 @@
-.card {
-    width: 50px;
-    height: 70px;
-    background-color: white;
-    color: black;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 5px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    margin: 0 5px;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
-    position: relative;
+.playing-card {
+  --w: 56px;
+  position: relative; width: var(--w); aspect-ratio: 5 / 7; border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f1f5f9); color: #0f172a;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); display: grid; place-items: center;
+  font-weight: 800; user-select: none; animation: deal 0.25s ease-out;
 }
-
-.card.red {
-    color: red;
+.playing-card--sm { --w: 40px; }
+.playing-card--lg { --w: 72px; }
+.playing-card.is-red { color: #dc2626; }
+.playing-card__corner { position: absolute; top: 4px; left: 6px; font-size: calc(var(--w) * 0.24); line-height: 1; text-align: center; }
+.playing-card__suit { font-size: calc(var(--w) * 0.55); }
+.playing-card--back {
+  background: repeating-linear-gradient(45deg, #1e3a8a 0 6px, #1d4ed8 6px 12px);
+  border: 3px solid #fff;
 }
-
-.card.black {
-    color: black;
-}
-
-.card-rank {
-    font-size: 16px;
-}
-
-.card-suit {
-    font-size: 14px;
-    margin-top: 5px;
-}
+@keyframes deal { from { opacity: 0; transform: translateY(-10px) rotate(-4deg); } }

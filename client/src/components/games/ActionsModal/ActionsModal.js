@@ -1,55 +1,34 @@
 import React, { useState } from 'react';
+import './ActionsModal.css';
 
-// Modal Component
-const ActionsModal = ({ lastRaiseAmount, onClose, onActionSelect }) => {
+/** Shown when another player raised and this player must respond. */
+const ActionsModal = ({ lastRaiseAmount, toCall, onActionSelect }) => {
     const [raiseAmount, setRaiseAmount] = useState(lastRaiseAmount);
-    const options = ['Call', 'Raise', 'Fold'];
     const [showRaiseInput, setShowRaiseInput] = useState(false);
-
-    const handleRaiseChange = (e) => {
-        setRaiseAmount(Number(e.target.value)); // עדכון סכום ההעלאה
-    };
-
-    const handleActionSelect = (action) => {
-        if (action === 'Raise') {
-            setShowRaiseInput(true); // הצגת שדה העלאה במקום לשלוח את הפעולה מיד
-        } else {
-            onActionSelect(action, raiseAmount); // שליחת הפעולה אם זו לא העלאה
-        }
-    };
-
-    const confirmRaise = () => {
-        if (raiseAmount <= lastRaiseAmount) {
-            alert('Raise amount must be higher than the last raise');
-            return;
-        }
-        setShowRaiseInput(false);
-        onActionSelect('Raise', raiseAmount); // שליחת פעולה רק לאחר אישור
-    };
+    const invalid = !Number.isInteger(raiseAmount) || raiseAmount < lastRaiseAmount;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content">
-                <h3>Choose an Action</h3>
-                {options.map(option => (
-                    <button key={option} onClick={() => handleActionSelect(option)}>
-                        {option === 'Call' ? `Call (${lastRaiseAmount})` : option}
-                    </button>
-                ))}
-
-                {/* הצגת שדה העלאה רק אם נבחרה האפשרות Raise */}
-                {showRaiseInput && (
-                    <div>
-                        <input
-                            type="number"
-                            value={raiseAmount}
-                            onChange={handleRaiseChange}
-                            placeholder={`Enter raise amount (min ${lastRaiseAmount + 1})`}
-                        />
-                        <button onClick={confirmRaise}>Confirm Raise</button>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="raise-title">
+            <div className="modal panel actions-modal">
+                <span className="eyebrow">Your move</span>
+                <h2 id="raise-title">A player raised</h2>
+                <p className="muted">Call {toCall ?? lastRaiseAmount} to stay in, re-raise, or fold.</p>
+                {showRaiseInput ? (
+                    <div className="field">
+                        <label htmlFor="reraise">Raise by (min {lastRaiseAmount})</label>
+                        <input id="reraise" className="input" type="number" min={lastRaiseAmount} value={raiseAmount}
+                            onChange={(e) => setRaiseAmount(Number(e.target.value))} autoFocus />
                     </div>
-                )}
-                <button onClick={onClose}>Cancel</button>
+                ) : null}
+                <div className="modal-actions">
+                    <button className="btn btn-ghost" onClick={() => onActionSelect('Fold')}>Fold</button>
+                    {showRaiseInput ? (
+                        <button className="btn btn-accent" disabled={invalid} onClick={() => onActionSelect('Raise', raiseAmount)}>Confirm raise</button>
+                    ) : (
+                        <button className="btn btn-accent" onClick={() => setShowRaiseInput(true)}>Raise…</button>
+                    )}
+                    <button className="btn btn-primary" onClick={() => onActionSelect('Call')}>Call {toCall ?? ''}</button>
+                </div>
             </div>
         </div>
     );
