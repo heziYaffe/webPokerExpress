@@ -1,46 +1,21 @@
-
-
-.login-page {
-  margin: 0;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-image: url('../../../../public/assets/Home/homePageCasino.webp'); /* Add your image URL here for a full-page background */
-  background-size: cover;
-}
-
-.login-container {
-  background-color: rgba(255, 255, 255, 0.8); /* Optional: make background slightly transparent to see the image */
-  padding: 20px;
-  border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  width: fit-content; /* Adjust width as needed */
-  margin: auto; /* Center in the viewport if it's a flex item */
+.auth-page { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
+.auth-art {
+  position: relative; padding: 40px; display: flex; flex-direction: column; justify-content: space-between;
+  background-color: #0d1628;
   background-size: cover;
   background-position: center;
 }
+.auth-art__quote h2 { font-size: 2rem; }
+.auth-art__quote p { color: var(--muted); margin: 0; }
+.auth-main { display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+.auth-card { width: 100%; max-width: 420px; }
+.auth-card h1 { font-size: 1.7rem; }
+.auth-subtitle { margin: 0 0 24px; }
+.auth-footer { margin: 20px 0 0; text-align: center; color: var(--muted); }
+.auth-brand--mobile { display: none !important; margin-bottom: 20px; }
 
-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-input[type="text"],
-input[type="password"],
-button {
-  margin: 10px;
-  padding: 10px;
-  width: 300px; /* Adjust the width as per your design */
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.error-message {
-  color: red;
-  font-weight: bold;
-  margin-top: 10px;
+@media (max-width: 860px) {
+  .auth-page { grid-template-columns: 1fr; }
+  .auth-art { display: none; }
+  .auth-brand--mobile { display: inline-flex !important; }
 }

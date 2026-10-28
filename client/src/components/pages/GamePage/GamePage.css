@@ -1,216 +1,28 @@
-.gameBackground::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('../../../../public/assets/Images/pokerFloor.png');
-    background-size: cover;
-    background-position: center;
-    opacity: 2; /* Adjust this value to decrease the opacity of the background image */
-    z-index: -1; /* Ensure the background stays behind the content */
+.game-topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 8px; }
+.game-title { font-size: 1.6rem; margin: 0; }
+.game-topbar__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.my-hand { display: grid; grid-template-columns: auto auto 1fr; gap: 24px; align-items: center; max-width: 920px; margin: 0 auto; }
+.my-hand__cards { display: flex; gap: 8px; }
+.my-hand__info { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.my-hand__chips { font-size: 1.6rem; color: var(--accent); }
+.my-hand__actions { display: flex; justify-content: flex-end; }
+.turn-hint { font-size: 0.9rem; }
+
+.result-banner {
+  position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 45;
+  background: var(--surface-2); border: 1px solid var(--border); padding: 14px 24px; border-radius: 999px;
+  font-weight: 800; font-size: 1.1rem; box-shadow: var(--shadow); animation: toast-in 0.3s ease-out;
 }
+.result-banner--win { background: linear-gradient(90deg, var(--primary), var(--accent)); color: #05140d; }
+.result-banner--win .muted { color: #134e3a; }
 
-.game-name {
-    margin-bottom: 80px;
+@media (max-width: 860px) {
+  .my-hand { grid-template-columns: auto 1fr; }
+  .my-hand__actions { grid-column: 1 / -1; justify-content: stretch; }
 }
-.game-container {
-    text-align: center;
-    padding: 20px;
-    z-index: 1;
-    position: relative;
+@media (max-width: 640px) {
+  .my-hand { gap: 14px; }
+  .my-hand .playing-card--lg { --w: 56px; }
+  .result-banner { width: calc(100% - 28px); text-align: center; border-radius: var(--radius); }
 }
-
-
-.player {
-    color: #fff; 
-    font-size: 16px; 
-    padding: 0; 
-    margin: 0; 
-    position: absolute; 
-}
-
-/* Container that holds both Player Info (cards + chips) and Player Panel */
-.player-panel-container {
-    display: flex;
-    justify-content: flex-start; /* Align the content from the left */
-    align-items: center;
-    position: fixed;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 10px;
-    border-radius: 10px;
-    width: auto; /* Adjust width to content */
-    z-index: 1;
-}
-
-/* Player info section (cards + chips) */
-.player-info {
-    display: flex;
-    flex-direction: column; /* Stack cards and chips vertically */
-    align-items: center;
-    margin-right: 20px; /* Space between player info and action panel */
-}
-
-/* Styling for the player's cards */
-.player-cards {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 10px; /* Space between cards and chips */
-}
-
-.player-cards .card {
-    width: 50px;
-    height: 70px;
-    margin-left: 5px; /* Space between cards */
-    background-color: white;
-    color: black;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 5px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
-}
-
-/* Styling for the player's chips */
-.player-chips {
-    font-size: 18px;
-    font-weight: bold;
-    color: #ffd700; /* Gold color for the chips text */
-}
-
-
-
-/* Position each player around the table */
-.player-1 {
-    top: 0%;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.player-2 {
-    top: 55%;
-    right: -4%;
-    transform: translateY(-50%);
-}
-
-.player-3 {
-    bottom: -10%;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.player-4 {
-    top: 50%;
-    left: 7%;
-    transform: translateY(-50%);
-}
-.start-game-btn, .leave-room-btn {
-    background-color: #28a745; /* צבע ירוק לכפתור */
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    font-size: 16px;
-    border-radius: 5px;
-    cursor: pointer;
-    margin: 10px;
-    transition: background-color 0.3s ease;
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* הוספת צל לכפתורים */
-}
-
-.leave-room-btn {
-    background-color: #dc3545; /* צבע אדום לכפתור */
-}
-
-.start-game-btn:hover, .leave-room-btn:hover {
-    background-color: #218838; /* גוון כהה יותר ל-hover */
-}
-
-.leave-room-btn:hover {
-    background-color: #c82333; /* גוון כהה יותר לכפתור עזיבה */
-}
-
-/* מיקום הכפתורים בפינה הימנית העליונה, אחד מתחת לשני */
-.button-container {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    display: flex;
-    flex-direction: column; /* שינוי ליישור בעמודה */
-    gap: 10px; /* רווח בין הכפתורים */
-}
-
-/* Confetti container */
-.confetti {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1000;
-    overflow: hidden;
-  }
-  
-  /* Individual confetti pieces */
-  .confetti-piece {
-    position: absolute;
-    top: -10px; /* Start above the viewport */
-    width: 10px;
-    height: 10px;
-    background-color: red; /* Will be overridden */
-    border-radius: 50%;
-    opacity: 0.7;
-    animation: confetti-fall linear infinite;
-  }
-  
-  /* Animation keyframes */
-  @keyframes confetti-fall {
-    to {
-      transform: translate3d(var(--x-move, 0px), 110vh, 0) rotateZ(360deg);
-      opacity: 0;
-    }
-  }
-  
-  @keyframes grow {
-    0% { transform: translate(-50%, -50%) scale(1); }
-    50% { transform: translate(-50%, -50%) scale(1.2); }
-    100% { transform: translate(-50%, -50%) scale(1); }
-}
-
-.defeat {
-    position: fixed;
-    top: 40%;
-    left: 50%;
-    transform: translate(-50%, -50%); /* Keep the text centered */
-    font-size: 6rem; /* Starting font size */
-    color: red;
-    animation: grow 2s ease-in-out infinite; /* Grow animation */
-    pointer-events: none;
-    z-index: 1000;
-    text-align: center;
-    font-family: 'Roboto', sans-serif;
-}
-
-.victory {
-    position: fixed;
-    top: 40%;
-    left: 50%;
-    transform: translate(-50%, -50%); /* Keep the text centered */
-    font-size: 6rem; /* Starting font size */
-    color: pink;
-    animation: grow 2s ease-in-out infinite; /* Grow animation */
-    pointer-events: none;
-    z-index: 1000;
-    text-align: center;
-    font-family: 'Roboto', sans-serif;
-}
-
-
-  

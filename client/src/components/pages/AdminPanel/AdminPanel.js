@@ -1,62 +1,59 @@
-import React from 'react';
+import React, { useState } from 'react';
+import Layout from '../../ui/Layout';
+import { api } from '../../../lib/api';
+import { usePlayer } from '../../../context/PlayerContext';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5003';
+const ACTIONS = [
+    { key: 'rooms', title: 'Delete all rooms', description: 'Removes every room and its game state. Players at a table will be disconnected.', confirm: 'Delete ALL rooms? This cannot be undone.' },
+    { key: 'users', title: 'Delete all non-admin users', description: 'Removes every account except administrators.', confirm: 'Delete ALL non-admin users? This cannot be undone.' },
+];
 
 const AdminPanel = () => {
+    const { connectedPlayer } = usePlayer();
+    const [busy, setBusy] = useState(null);
+    const [result, setResult] = useState(null);
 
-    // פונקציה שמוחקת את כל החדרים דרך ה-API
-    const deleteAllRooms = async () => {
+    const run = async (action) => {
+        if (!window.confirm(action.confirm)) return;
+        setBusy(action.key);
+        setResult(null);
         try {
-            const token = localStorage.getItem('token'); // שים לב מאיפה אתה שומר את הטוקן לאחר התחברות המשתמש
-            if (!token) {
-                throw new Error("No token found");
-            }
-            const response = await fetch(`${API_URL}/api/admin/rooms`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // הוספת הטוקן לכותרת Authorization
-
-                }
-            });
-            const result = await response.json();
-            console.log(result.message); // הצגת הודעת המחיקה בקונסול
-        } catch (error) {
-            console.error('Error deleting rooms:', error);
+            const data = await api(`/api/admin/${action.key}`, { method: 'DELETE' });
+            setResult({ ok: true, message: `${data.message} (${data.deletedCount ?? 0} removed)` });
+        } catch (err) {
+            setResult({ ok: false, message: err.status === 403 ? 'You need the admin role to do this.' : err.message });
+        } finally {
+            setBusy(null);
         }
     };
-
-    const deleteAllUsersExceptAdmin = async () => {
-        try {
-            const token = localStorage.getItem('token'); // שים לב מאיפה אתה שומר את הטוקן לאחר התחברות המשתמש
-            if (!token) {
-                throw new Error("No token found");
-            }
-            const response = await fetch(`${API_URL}/api/admin/users`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // הוספת הטוקן לכותרת Authorization
-
-                }
-            });
-            const result = await response.json();
-            console.log(result.message); // הצגת הודעת המחיקה בקונסול
-        } catch (error) {
-            console.error('Error deleting users:', error);
-        }
-    };
-
-    
 
     return (
-        <div className="admin-panel">
-            <h1>Admin Panel</h1>
-            {/* כפתור למחיקת כל החדרים */}
-            <button onClick={deleteAllRooms}>Delete All Rooms</button>
-            <button onClick={deleteAllUsersExceptAdmin}>Delete All users</button>
+        <Layout>
+            <div className="page-header">
+                <div>
+                    <span className="eyebrow">Administration</span>
+                    <h1>Admin panel</h1>
+                    <p>Maintenance actions. Only accounts with the <code>admin</code> role can run them.</p>
+                </div>
+                <span className={`badge ${connectedPlayer?.role === 'admin' ? 'badge-green' : 'badge-red'}`}>
+                    <span className="dot" /> {connectedPlayer?.role === 'admin' ? 'Admin' : 'Not an admin'}
+                </span>
+            </div>
 
-        </div>
+            {result && <div className={`alert ${result.ok ? 'alert-success' : 'alert-error'}`} role="status">{result.message}</div>}
+
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+                {ACTIONS.map((a) => (
+                    <section key={a.key} className="panel">
+                        <h2 style={{ fontSize: '1.15rem' }}>{a.title}</h2>
+                        <p className="muted">{a.description}</p>
+                        <button className="btn btn-danger" onClick={() => run(a)} disabled={busy !== null}>
+                            {busy === a.key ? 'Working…' : a.title}
+                        </button>
+                    </section>
+                ))}
+            </div>
+        </Layout>
     );
 };
 

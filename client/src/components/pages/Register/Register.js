@@ -1,96 +1,73 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { Link, useNavigate } from 'react-router-dom';
+import AuthLayout from '../Login/AuthLayout';
+import { api } from '../../../lib/api';
 
-import './Register.css';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5003';
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,20}$/;
 
 const Register = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState(''); // Define state for message
-  const [isError, setIsError] = useState(false); // Define state for error flag
-  const [loading, setLoading] = useState(false); // Optional: State for loading
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
-  const navigate = useNavigate(); // Initialize the navigation function
+    const validate = () => {
+        if (!USERNAME_RE.test(username)) return 'Username must be 3–20 characters: letters, digits, ".", "_" or "-".';
+        if (password.length < 8) return 'Password must be at least 8 characters.';
+        if (password !== confirm) return 'Passwords do not match.';
+        return '';
+    };
 
-  const handleClick = () => {
-    navigate('/login'); // Replace '/target-page' with the route you want to navigate to
-  };
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        const problem = validate();
+        if (problem) return setError(problem);
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(''); // Clear previous messages
-    try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage('Registration successful!');
-        setIsError(false);
-
-        // Add delay before redirecting to login page
-        setTimeout(() => {
-          navigate('/login'); // Redirect to login page after 2 seconds
-        }, 1500); // 2000 milliseconds = 2 seconds
-      } else {
-        // Handle specific error for "username already taken"
-        if (data.message === 'Username already exists') {
-          setMessage('This username is already taken. Please choose another one.');
-        } else {
-          setMessage(`Registration failed: ${data.message}`);
+        setLoading(true);
+        setError('');
+        try {
+            await api('/api/auth/register', { method: 'POST', body: { username, password } });
+            navigate('/login', { state: { registered: true } });
+        } catch (err) {
+            setError(err.status === 409 ? 'This username is already taken. Please choose another one.' : err.message);
+        } finally {
+            setLoading(false);
         }
-        setIsError(true);
-      }
-    } catch (error) {
-      console.error('Network error:', error);
-      setMessage('Network error, please try again later.');
-      setIsError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  return (
-    <div className='register-page'>
-      <div className="register-container">
-        <h2>Casino</h2>
-        <form onSubmit={handleRegister}>
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button type="submit" disabled={loading}>
-            {loading ? 'Registering...' : 'Register'}
-          </button>
-        </form>
-        {message && (
-          <p className={isError ? 'error' : 'success'}>
-            {message}
-          </p>
-        )}
-        <p>Have an account? <span onClick={handleClick} style={{ color: 'blue', cursor: 'pointer', textDecoration: 'underline' }}>Login</span></p>
-      </div>
-    </div>
-  );
+    return (
+        <AuthLayout
+            title="Create your account"
+            subtitle="It takes 10 seconds. Play money only."
+            footer={<>Already have an account? <Link to="/login">Sign in</Link></>}
+        >
+            {error && <div className="alert alert-error" role="alert">{error}</div>}
+            <form onSubmit={handleRegister}>
+                <div className="field">
+                    <label htmlFor="username">Username</label>
+                    <input id="username" className="input" type="text" autoComplete="username" value={username}
+                        onChange={(e) => setUsername(e.target.value)} required autoFocus />
+                    <span className="hint">3–20 characters: letters, digits, “.”, “_”, “-”.</span>
+                </div>
+                <div className="field">
+                    <label htmlFor="password">Password</label>
+                    <input id="password" className="input" type="password" autoComplete="new-password" value={password}
+                        onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+                    <span className="hint">At least 8 characters.</span>
+                </div>
+                <div className="field">
+                    <label htmlFor="confirm">Confirm password</label>
+                    <input id="confirm" className="input" type="password" autoComplete="new-password" value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)} required />
+                </div>
+                <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
+                    {loading ? 'Creating account…' : 'Create account'}
+                </button>
+            </form>
+        </AuthLayout>
+    );
 };
 
 export default Register;
