@@ -1,43 +1,25 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { clearToken, getToken, playerFromToken, setToken } from '../lib/auth';
 
-// Utility function to decode JWT token
-const parseJwt = (token) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
-};
-
-const PlayerContext = createContext();
+const PlayerContext = createContext(null);
 
 export const PlayerProvider = ({ children }) => {
-  const [connectedPlayer, setConnectedPlayer] = useState(null);
+    // Rehydrate synchronously from a valid, unexpired token (no crash when logged out).
+    const [connectedPlayer, setConnectedPlayer] = useState(() => playerFromToken(getToken()));
 
-  useEffect(() => {
-    // Rehydrate from localStorage if user is already logged in
-    const storedPlayerToken = localStorage.getItem('token');
-    console.log("storedPlayerToken", storedPlayerToken)
-    const parsedJwt =  parseJwt(storedPlayerToken)
-    console.log("parsedJwt", parsedJwt)
-    setConnectedPlayer({ id: parsedJwt.userId, name: parsedJwt.username });
-    if (storedPlayerToken) {
-        //setConnectedPlayer(storedPlayerToken);
-    }
-}, []);
+    const login = useCallback((token) => {
+        setToken(token);
+        setConnectedPlayer(playerFromToken(token));
+    }, []);
 
-const logout = () => {
-    setConnectedPlayer(null);
-    localStorage.removeItem('connectedPlayer');
+    const logout = useCallback(() => {
+        clearToken();
+        setConnectedPlayer(null);
+    }, []);
+
+    const value = useMemo(() => ({ connectedPlayer, setConnectedPlayer, login, logout }), [connectedPlayer, login, logout]);
+
+    return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
 };
 
-  return (
-    <PlayerContext.Provider value={{ connectedPlayer, setConnectedPlayer, logout }}>
-      {children}
-    </PlayerContext.Provider>
-  );
-};
-
-export const usePlayer = () => {
-  return useContext(PlayerContext);
-};
+export const usePlayer = () => useContext(PlayerContext);
