@@ -1,42 +1,25 @@
 const jwt = require('jsonwebtoken');
+const { jwtSecret } = require('../config');
 
-require('dotenv').config({ path: './config/.env' }); // Adjust the path as necessary
-
-const jwtSecret = process.env.JWT_SECRET || 'your_secret_key';
-
+/**
+ * Verifies the `Authorization: Bearer <jwt>` header and attaches
+ * req.userId / req.username to the request.
+ */
 module.exports = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
 
-     // Extract the token from the Authorization header
-     const authHeader = req.headers['authorization'];
-    
-     // Check if the token exists and starts with "Bearer "
-     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-         return res.status(403).json({ message: 'No token provided or invalid token format' });
-     }
- 
-     // Remove the "Bearer " part from the token
-     const token = authHeader.split(' ')[1];
- 
-     try {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'No token provided or invalid token format' });
+    }
 
-        console.log("token: ", token)
+    const token = authHeader.slice('Bearer '.length);
 
-         // Verify the token
-         const decoded = jwt.verify(token, jwtSecret);
-
-         console.log("decoded: ", decoded)
-
- 
-         // Attach the decoded user ID to the request object
-         req.userId = decoded.userId;
- 
-         console.log("req.userId: ",  req.userId)
-
-         // Continue to the next middleware or route handler
-         next();
-     } catch (error) {
-         // Handle any errors during token verification
-         return res.status(401).json({ message: 'Failed to authenticate token' });
-     }
-
+    try {
+        const decoded = jwt.verify(token, jwtSecret);
+        req.userId = decoded.userId;
+        req.username = decoded.username;
+        next();
+    } catch (error) {
+        return res.status(401).json({ message: 'Failed to authenticate token' });
+    }
 };

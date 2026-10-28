@@ -1,12 +1,16 @@
 const express = require('express');
 const { deleteAllRooms, deleteAllUsersExceptAdmin } = require('../controllers/adminController');
-const authMiddleware = require('../middleware/authMiddleware.js');
+const authMiddleware = require('../middleware/authMiddleware');
+const requireAdmin = require('../middleware/requireAdmin');
 const router = express.Router();
 
-// מחיקת כל החדרים
-router.delete('/rooms', authMiddleware, deleteAllRooms);
+// Every admin route requires a valid token AND the admin role.
+router.use(authMiddleware, requireAdmin);
 
-// מחיקת כל המשתמשים
-router.delete('/users', authMiddleware, deleteAllUsersExceptAdmin);
+// Delete all rooms
+router.delete('/rooms', deleteAllRooms);
+
+// Delete all non-admin users
+router.delete('/users', deleteAllUsersExceptAdmin);
 
 module.exports = router;
