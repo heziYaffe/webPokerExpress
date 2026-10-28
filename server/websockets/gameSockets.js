@@ -89,7 +89,7 @@ const sendGameStateForAllPlayers = (roomId) => {
 const sendRoomManagerForAllPlayers = (roomId) => {
     const entry = rooms[roomId];
     if (!entry) return;
-    broadcastToRoom(roomId, { type: 'roomManager', manager: entry.room.manager });
+    broadcastToRoom(roomId, { type: 'roomManager', manager: entry.room.manager, name: entry.room.name, gameType: entry.room.gameType });
 };
 
 /** Waits for a `playerActionToRaise` reply from one player, folding them on timeout. */
