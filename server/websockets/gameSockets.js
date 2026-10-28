@@ -1,391 +1,302 @@
-const GameLogic = require('../controllers/gameLogic');
-const Room = require('../models/Room'); // ודא שאתה מייבא את המודל של Room
-const GameState = require('../models/GameState'); // ודא שאתה מייבא את המודל של Room
-
-
 const WebSocket = require('ws');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const GameLogic = require('../controllers/gameLogic');
+const Room = require('../models/Room');
+const GameState = require('../models/GameState');
+const config = require('../config');
+const logger = require('../utils/logger');
+const { wsMessageSchema } = require('../validation');
 
-const { handlePlayerAction } = require('../controllers/gameController');
+// Close codes (4000-4999 are application-defined).
+const CLOSE_UNAUTHORIZED = 4401;
+const CLOSE_NOT_FOUND = 4404;
+const CLOSE_ROOM_FULL = 4409;
 
+const RAISE_RESPONSE_TIMEOUT_MS = 30000;
+// Empty rooms are deleted after a grace period so a page refresh does not destroy the room.
+const EMPTY_ROOM_GRACE_MS = Number(process.env.EMPTY_ROOM_GRACE_MS) || 30000;
 
+const rooms = {}; // roomId -> { game, room }
 
-const rooms = {};  // אובייקט שמנהל את כל החדרים והחיבורים שלהם
+const send = (ws, message) => {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+};
 
-const fetchingRoom = async (roomId) => {
-    console.log("fetching Room", roomId)
-
+const parseMessage = (raw) => {
     try {
-        // שליפת החדר מהמסד נתונים
-        const room = await Room.findById(roomId).populate('gameState');
-
-        if (room) {
-            // אם החדר נמצא במסד נתונים
-            rooms[roomId] = {
-                game: new GameLogic(100, 4, room.buyIn, room.tableLimit), // נניח שאתה צריך להשתמש בערכים מהחדר
-                room: room // טעינת החדר ממסד נתונים
-            };
-            console.log(`Room ${roomId} loaded from database.`);
-        } else {
-            console.error(`Room ${roomId} not found in database.`);
-        }
-    } catch (error) {
-        console.error(`Error fetching room from database: ${error}`);
-        console.log("in game sockets")
+        const result = wsMessageSchema.safeParse(JSON.parse(raw));
+        return result.success ? result.data : null;
+    } catch {
+        return null;
     }
 };
 
-const addPlayerToRoom = (ws, userId, username, roomId, game) => {
-
-    // בדוק אם השחקן כבר קיים בחדר עם אותו userId
-    const existingPlayer = game.players.find(player => player.userId === userId);
-
-    if (existingPlayer) {
-        console.log(`Player ${username} (userId: ${userId}) is already connected to room ${roomId}. Replacing old connection.`);
-
-        // סגור את ה-WebSocket הישן
-        existingPlayer.ws.close();
-
-        // עדכן את ה-WebSocket של השחקן הקיים לחיבור החדש
-        existingPlayer.ws = ws;
-
-        console.log(`Player ${username}'s WebSocket connection replaced in room ${roomId}.`);
-    } else {
-        // הוסף את השחקן לרשימה אם לא קיים
-        game.addPlayer(ws, userId, username);
-        console.log(`Player ${username} connected to room ${roomId}. Total players: ${game.players.length}`);
+/** Verifies the JWT; returns { userId, username } or null. */
+const authenticate = (token) => {
+    if (!token) return null;
+    try {
+        const decoded = jwt.verify(token, config.jwtSecret);
+        return { userId: decoded.userId, username: decoded.username };
+    } catch {
+        return null;
     }
 };
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const loadRoom = async (roomId) => {
+    if (rooms[roomId]) return rooms[roomId];
+    const room = await Room.findById(roomId).populate('gameState');
+    if (!room) return null;
+    // Another connection may have loaded it while we were awaiting.
+    if (!rooms[roomId]) {
+        rooms[roomId] = {
+            game: new GameLogic(room.smallBlind || 10, room.maxPlayers || 6, room.buyIn, room.tableLimit),
+            room,
+        };
+        logger.debug(`Room ${roomId} loaded from database`);
+    }
+    return rooms[roomId];
+};
 
-const waitForPlayerAction = (player, timeLimit) => {
-    console.log("wait for player action")
-    return new Promise((resolve) => {
-        
-        // הגדרת השהיית זמן
-        const timer = setTimeout(() => {
-            console.log(`Player ${player.userId} did not respond in time, forcing fold.`);
-            resolve({ action: 'fold', player }); // פעולה אוטומטית - "fold"
-        }, timeLimit);
-        
+const addPlayerToRoom = (ws, userId, username, game) => {
+    const existing = [...game.players, ...game.foldedPlayers].find((p) => p.userId === userId);
+    if (existing) {
+        // Reconnect: replace the old socket.
+        const old = existing.ws;
+        existing.ws = ws;
+        if (old !== ws) old.close();
+        return { player: existing };
+    }
+    return game.addPlayer(ws, userId, username);
+};
 
-        // האזנה לפעולה מהשחקן
-        player.ws.once('message', (message) => {
-            const data = JSON.parse(message);
-            if (data.type === 'playerActionToRaise') {
-                console.log("get message with type playerActionToRaise")
-                clearTimeout(timer); // ביטול הטיימר אם השחקן פעל בזמן
-                resolve({ action: data.action, player, raiseAmount: data.raiseAmount });
-            }
-        });
-        
+const broadcastToRoom = (roomId, message) => {
+    const entry = rooms[roomId];
+    if (!entry) return;
+    [...entry.game.players, ...entry.game.foldedPlayers].forEach((p) => send(p.ws, message));
+};
 
+const sendGameStateForAllPlayers = (roomId) => {
+    const entry = rooms[roomId];
+    if (!entry) return;
+    const { game } = entry;
+    [...game.players, ...game.foldedPlayers].forEach((player) => {
+        const state = game.getGameState(player.ws);
+        if (state) send(player.ws, { type: 'gameUpdate', state });
     });
 };
 
+const sendRoomManagerForAllPlayers = (roomId) => {
+    const entry = rooms[roomId];
+    if (!entry) return;
+    broadcastToRoom(roomId, { type: 'roomManager', manager: entry.room.manager });
+};
 
-const handleRaise = async(ws, game, roomId) => {
-    console.log("starting raise round...");
+/** Waits for a `playerActionToRaise` reply from one player, folding them on timeout. */
+const waitForPlayerAction = (player, timeLimit) => new Promise((resolve) => {
+    const onMessage = (raw) => {
+        const data = parseMessage(raw);
+        if (data && data.type === 'playerActionToRaise') {
+            cleanup();
+            resolve({ action: data.action, player, raiseAmount: data.raiseAmount });
+        }
+    };
+    const onClose = () => { cleanup(); resolve({ action: 'Fold', player }); };
+    const timer = setTimeout(() => {
+        logger.debug(`Player ${player.username} did not respond in time, folding`);
+        cleanup();
+        resolve({ action: 'Fold', player });
+    }, timeLimit);
+    const cleanup = () => {
+        clearTimeout(timer);
+        player.ws.off('message', onMessage);
+        player.ws.off('close', onClose);
+    };
+    player.ws.on('message', onMessage);
+    player.ws.on('close', onClose);
+});
+
+/** After a raise, every other active player must call, re-raise or fold. */
+const handleRaise = async (raiserWs, game, roomId) => {
+    let raiserId = game.players.find((p) => p.ws === raiserWs)?.userId;
     let raiseHappened = true;
 
-    // נמשיך לשאול את השחקנים עד שלא יקרה רירייז נוסף
-    while (raiseHappened) {
+    while (raiseHappened && game.players.length > 1) {
         raiseHappened = false;
+        for (const player of [...game.players]) {
+            if (player.userId === raiserId || !game.players.includes(player)) continue;
 
-        // עוברים על כל השחקנים
-        for (let i = 0; i < game.players.length; i++) {
-            const player = game.players[i];
-
-            // דילוג על השחקן שביצע את ה-raise הנוכחי
-            if (player.ws === ws) {
-                continue;
-            }
-
-            // שולחים לשחקן בקשה לפעולה עם הסכום החדש של ה-raise
-            player.ws.send(JSON.stringify({
-                type: 'actionRequest',
-                lastRaiseAmount: game.lastRaiseAmount // סכום ההעלאה החדש שיש להשוות
-            }));
-
+            send(player.ws, { type: 'actionRequest', lastRaiseAmount: game.lastRaiseAmount, toCall: game.roundBet - player.lastBet });
             sendGameStateForAllPlayers(roomId);
 
-            // ממתינים לפעולה מהשחקן או לפקיעת הזמן
-            const { action, player: actingPlayer, raiseAmount } = await Promise.race([
-                waitForPlayerAction(player, 30000), // מגבלת זמן של 30 שניות
-            ]);
+            const { action, raiseAmount } = await waitForPlayerAction(player, RAISE_RESPONSE_TIMEOUT_MS);
+            let result = game.setPlayerAction(player.ws, action, raiseAmount);
+            if (result.error) {
+                // Invalid re-raise: treat as a call so the hand keeps moving.
+                send(player.ws, { type: 'error', message: result.error });
+                result = game.setPlayerAction(player.ws, 'Call');
+            }
 
-            console.log(`Player ${actingPlayer.userId} chose to ${action}`);
-
-            // מבצעים את הפעולה של השחקן (check, fold, call, raise)
-            const result = game.setPlayerAction(actingPlayer.ws, action, raiseAmount);
-
-            // אם שחקן עשה raise נוסף, מפסיקים את הלולאה ומתחילים מחדש
-            if (result.raiseAmount) {
-                ws = actingPlayer.ws;
-                console.log(`Player ${actingPlayer.userId} did a re-raise`);
+            if (result.type === 'raised') {
+                raiserId = player.userId;
                 raiseHappened = true;
-                break; // יוצאים מהלולאה כדי להתחיל שוב עם הסכום החדש של ה-raise
+                break;
             }
         }
-
-        // שליחת עדכון לכל השחקנים לאחר סיבוב
         sendGameStateForAllPlayers(roomId);
+    }
+};
+
+const broadcastStage = (roomId, stageData) => {
+    if (!stageData) return;
+    if (stageData.type === 'showdown') {
+        broadcastToRoom(roomId, {
+            type: 'winners',
+            winners: stageData.winners,
+            winnerNames: stageData.winnerNames,
+            hand: stageData.hand,
+        });
+    } else if (stageData.cards) {
+        broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
+    }
+};
+
+const persistRoomState = async (roomId, game) => {
+    try {
+        const room = await Room.findById(roomId);
+        if (!room) return;
+        await GameState.findByIdAndUpdate(room.gameState, {
+            currentPlayer: game.currentPlayer,
+            playerCards: [...game.players, ...game.foldedPlayers].map((p) => ({ player: p.userId, cards: [] })),
+            pot: game.pot,
+            communityCards: game.communityCards.map((card) => `${card.rank}${card.suit}`),
+            status: game.stage === game.WAITING ? 'waiting' : 'in-game',
+        });
+    } catch (error) {
+        logger.error(`Failed to persist room ${roomId}:`, error.message);
     }
 };
 
 const setupWebSocket = (server) => {
-    const wss = new WebSocket.Server({ server });
+    const wss = new WebSocket.Server({ server, maxPayload: 4 * 1024 });
 
-    wss.on('connection', async (ws, req) => { // הוספת async כאן
+    wss.on('connection', async (ws, req) => {
+        const params = new URL(req.url, 'http://localhost').searchParams;
+        const roomId = params.get('roomId');
+        const identity = authenticate(params.get('token'));
 
-        const roomId = new URL(req.url, `http://${req.headers.host}`).searchParams.get('roomId');
-        const token = new URL(req.url, `http://${req.headers.host}`).searchParams.get('token');
+        if (!identity) return ws.close(CLOSE_UNAUTHORIZED, 'Unauthorized');
+        if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) return ws.close(CLOSE_NOT_FOUND, 'Room not found');
 
-        const username = extractUsernameFromRequest(token);
-        console.log("username", username);
+        const { userId, username } = identity;
 
-        const userId = extractUserIdFromRequest(token);
-        console.log("userId", userId);
-
-        // בדיקה האם החדר קיים או טעינת חדר קיים מהמסד
-        if (!rooms[roomId]) {
-            await fetchingRoom(roomId);  // שימוש ב-await
+        let entry;
+        try {
+            entry = await loadRoom(roomId);
+        } catch (error) {
+            logger.error(`Error loading room ${roomId}:`, error.message);
         }
+        if (!entry) return ws.close(CLOSE_NOT_FOUND, 'Room not found');
 
+        const { game, room } = entry;
+        if (entry.deleteTimer) {
+            clearTimeout(entry.deleteTimer);
+            entry.deleteTimer = null;
+        }
+        const added = addPlayerToRoom(ws, userId, username, game);
+        if (added.error) return ws.close(CLOSE_ROOM_FULL, added.error);
 
-        const room = rooms[roomId]?.room; // ודא שהחדר קיים
-        if (!room) {
-            console.error('Room not found');
-            return;
-        }      
-
-        console.log(`room`, room);
-
-        const game = rooms[roomId].game;
-
-        addPlayerToRoom(ws, userId, username, roomId, game)
-            
-
+        logger.debug(`${username} connected to room ${roomId}`);
         sendGameStateForAllPlayers(roomId);
-        sendRoomManagerForAllPlayers(roomId)
+        sendRoomManagerForAllPlayers(roomId);
 
-        ws.on('message', async (message) => { // Remove extra parenthesis here
-            const data = JSON.parse(message);
-            console.log(`Received message in room ${roomId}:`, data);
-        
-            if (data.type === 'startGame' && room.manager === userId) {
-                console.log(`Game started in room ${roomId}`);
-                game.nextStage();
-        
-                // Send cards to every player
-                game.players.forEach(player => {
-                    const playerCards = game.getPlayer(player.ws)?.cards || [];
-                    player.ws.send(JSON.stringify({
-                        type: 'playerCards',
-                        cards: playerCards
-                    }));
-                    console.log(`Sent cards to player in room ${roomId}:`, playerCards);
-                });
+        ws.on('message', async (raw) => {
+            const data = parseMessage(raw);
+            if (!data) return send(ws, { type: 'error', message: 'Invalid message' });
+
+            if (data.type === 'startGame') {
+                if (room.manager !== userId) return send(ws, { type: 'error', message: 'Only the room manager can start the game' });
+                const result = game.nextStage();
+                if (result && result.error) return send(ws, { type: 'error', message: result.error });
+
+                broadcastToRoom(roomId, { type: 'startGame' });
+                game.players.forEach((player) => send(player.ws, { type: 'playerCards', cards: player.cards }));
+                sendGameStateForAllPlayers(roomId);
+                return;
             }
-        
+
             if (data.type === 'playerAction') {
-                console.log(`Player ${data.playerId} in room ${roomId} performed action: ${data.action}`); 
-                const answer = game.setPlayerAction(ws, data.action, data.raiseAmount);
+                const result = game.setPlayerAction(ws, data.action, data.raiseAmount, { enforceTurn: true });
+                if (result.error) {
+                    send(ws, { type: 'error', message: result.error });
+                    return sendGameStateForAllPlayers(roomId);
+                }
+                broadcastToRoom(roomId, { type: 'playerActed', username, action: result.type });
 
-                broadcastToRoom(roomId, { type: `player ${ws} ${data.action}` });
-
-                let stageData = null;
-
-                if (data.action == 'Raise') {
-                    console.log("in data.action == 'Raise'")
-
-                    await handleRaise(ws, game, roomId); // Handle player raise logic
-                    stageData = game.nextStage();
-
-                    if (stageData) {
-                        if (winners) {
-                            broadcastToRoom(roomId, { type: "winners", winners: stageData.winners });
-                        } else {
-                            console.log(`Dealing ${stageData.type}, cards ${JSON.stringify(stageData.cards)} in room ${roomId}`);
-                            broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
-                        }
-                    }
-
+                const lastStanding = game.awardIfLastStanding();
+                if (lastStanding) {
+                    broadcastStage(roomId, lastStanding);
                 } else {
+                    if (result.type === 'raised') await handleRaise(ws, game, roomId);
 
-                    console.log("in data.action != 'Raise'")
-                    // Move to next stage if all players have acted
-                    if (game.allPlayersHaveActed()) {
-                        stageData = game.nextStage();
-
-                        if (stageData) {
-                            console.log(`Dealing ${stageData.type}, cards ${JSON.stringify(stageData.cards)} in room ${roomId}`);
-                            broadcastToRoom(roomId, { type: stageData.type, cards: stageData.cards });
-                        }
-
-                    }
-
-                }
-                
-                console.log("get game stage", game.getStage());
-
-                if (game.getStage() == -1) {
-                    console.log("game is over");
-                    broadcastToRoom(roomId, { type: "endGame" });
+                    const handOver = game.awardIfLastStanding();
+                    if (handOver) broadcastStage(roomId, handOver);
+                    else if (result.type === 'raised' || game.allPlayersHaveActed()) broadcastStage(roomId, game.nextStage());
                 }
 
+                if (game.getStage() === game.WAITING) broadcastToRoom(roomId, { type: 'endGame' });
                 sendGameStateForAllPlayers(roomId);
+                persistRoomState(roomId, game);
+                return;
             }
-        
+
             if (data.type === 'leaveRoom') {
-                console.log(`Player ${data.playerId} in room ${roomId} Leave`);
                 game.leaveRoom(ws);
-        
-                try {
-                    const room = await Room.findById(roomId).populate('gameState');
-                    await GameState.findByIdAndUpdate(room.gameState._id, {
-                        $pull: { playerCards: { player: data.playerId } }
-                    });
-                    console.log(`Player ${data.playerId} removed from room ${roomId}.`);
-                } catch (error) {
-                    console.error(`Failed to remove player ${data.playerId} from room ${roomId} in DB:`, error);
-                }
-        
+                // The leaving user is always the authenticated one (never trust a client-sent id).
+                await GameState.findByIdAndUpdate(room.gameState?._id, { $pull: { playerCards: { player: userId } } })
+                    .catch((error) => logger.error('Failed to remove player from DB:', error.message));
                 sendGameStateForAllPlayers(roomId);
             }
-        }); // Closing brace for ws.on('message')
-        
-    
+            // playerActionToRaise is consumed by waitForPlayerAction.
+        });
 
         ws.on('close', async () => {
-            console.log(`A client disconnected from room ${roomId}`);
-            game.players = game.players.filter(client => client.ws !== ws);
+            const stillHere = [...game.players, ...game.foldedPlayers].some((p) => p.ws === ws);
+            if (!stillHere && game.players.length + game.foldedPlayers.length > 0) return; // replaced by a reconnect
 
+            game.leaveRoom(ws);
+            logger.debug(`${username} disconnected from room ${roomId}`);
 
-            if (game.players.length === 0) {
-                console.log(`Room ${roomId} is now empty. Deleting room.`);
-                delete rooms[roomId];
-                await Room.findByIdAndDelete(roomId)
-            } else {
-                console.log(`Player disconnected from room ${roomId}. Players left: ${game.players.length}`);
-
-                // עדכון gameState עם מצב השחקנים החדש
-                const playerStates = game.players.map(player => ({
-                    player: player.userId,  // שמירת ה-ObjectId של השחקן
-                    cards: player.cards.map(card => `${card.rank}${card.suit}`) // ייצוג הקלפים כמחרוזת (e.g., 'KH', 'JD')
-                }));
-
-                try {
-                    // מצא את ה-GameState הקיים בחדר
-                    const room = await Room.findById(roomId).populate('gameState');
-                    
-                    // עדכון המצב של GameState
-                    await GameState.findByIdAndUpdate(room.gameState._id, {
-                        currentPlayer: game.currentPlayer,
-                        playerCards: playerStates, // שמירת השחקנים הנותרים והקלפים שלהם
-                        pot: game.pot,
-                        communityCards: game.communityCards.map(card => `${card.rank}${card.suit}`), // ייצוג הקלפים הקהילתיים כמחרוזות
-                        status: game.stage === game.SHOWDAWN ? 'completed' : 'in-game' // עדכון הסטטוס
-                    });
-
-                    console.log(`Room ${roomId} updated in database with new game state.`);
-                } catch (error) {
-                    console.error(`Failed to update room ${roomId} in database:`, error);
-                }
-
-                sendGameStateForAllPlayers(roomId)
+            if (game.players.length + game.foldedPlayers.length === 0) {
+                entry.deleteTimer = setTimeout(async () => {
+                    if (rooms[roomId] !== entry || game.players.length + game.foldedPlayers.length > 0) return;
+                    delete rooms[roomId];
+                    try {
+                        const doc = await Room.findByIdAndDelete(roomId);
+                        if (doc?.gameState) await GameState.findByIdAndDelete(doc.gameState);
+                        logger.debug(`Empty room ${roomId} deleted`);
+                    } catch (error) {
+                        logger.error(`Failed to delete empty room ${roomId}:`, error.message);
+                    }
+                }, EMPTY_ROOM_GRACE_MS);
+                entry.deleteTimer.unref?.();
+                return;
             }
+
+            const handOver = game.awardIfLastStanding();
+            if (handOver) {
+                broadcastStage(roomId, handOver);
+                broadcastToRoom(roomId, { type: 'endGame' });
+            }
+            await persistRoomState(roomId, game);
+            sendGameStateForAllPlayers(roomId);
         });
     });
+
+    return wss;
 };
-
-
-
-const jwt = require('jsonwebtoken');
-
-const extractUsernameFromRequest = (token) => {
-    if (!token) return null;
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
-        return decoded.username; // שם המשתמש שנשמר בטוקן
-    } catch (err) {
-        console.error('Invalid token:', err);
-        return null;
-    }
-}
-
-const extractUserIdFromRequest = (token) => {
-    if (!token) return null;
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_secret_key');
-        return decoded.userId; // שם המשתמש שנשמר בטוקן
-    } catch (err) {
-        console.error('Invalid token:', err);
-        return null;
-    }
-}
-
-
-const broadcastToRoom = (roomId, message) => {
-    console.log(`Broadcasting message to room ${roomId}:`, message);
-
-    if (rooms[roomId]) {
-        const game = rooms[roomId].game
-    
-        if (game.players && game.players.length > 0) {
-            game.players.forEach(client => {
-                if (client.ws.readyState === WebSocket.OPEN) {
-                    client.ws.send(JSON.stringify(message));
-                }
-            });
-        } else {
-            console.error(`Room ${roomId} does not exist or has no players.`);
-        }
-    }
-};
-
-const sendGameStateForAllPlayers = (roomId) => {
-    if (rooms[roomId]) {
-        const game = rooms[roomId].game;
-        const players = [...game.players, ...game.foldedPlayers]
-        if (game.players && game.players.length > 0) {
-            // שליחת עדכון לכל שחקן על המצב שלו
-            players.forEach(player => {
-                const gameState = game.getGameState(player.ws);
-                console.log("game state in sendGameStateForAllPlayers", gameState);
-                
-                player.ws.send(JSON.stringify({
-                    type: 'gameUpdate',
-                    state: gameState // שליחת המצב של כל שחקן לשחקן הספציפי
-                }));
-            });
-        }
-    }
-};
-
-sendRoomManagerForAllPlayers = (roomId) => {
-    
-    if (rooms[roomId]) {
-        const room = rooms[roomId].room;
-        const game = rooms[roomId].game;
-        const players = [...game.players, ...game.foldedPlayers]
-        if (game.players && game.players.length > 0) {
-            // שליחת עדכון לכל שחקן על המצב שלו
-            players.forEach(player => {
-                player.ws.send(JSON.stringify({
-                    type: 'roomManager',
-                    manager: room.manager // שליחת המצב של כל שחקן לשחקן הספציפי
-                }));
-            });
-        }
-    }
-}
-
 
 module.exports = {
     setupWebSocket,
-    broadcastToRoom
+    broadcastToRoom,
 };
-
